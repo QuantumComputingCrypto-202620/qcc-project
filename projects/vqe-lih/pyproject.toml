@@ -1,0 +1,27 @@
+[project]
+name = "vqe-lih"
+version = "0.1.0"
+description = "LiH dissociation curve with VQE: UCCSD vs a hardware-efficient ansatz."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "qcc-common",
+    "qiskit",
+    "qiskit-aer",
+    "qiskit-algorithms",
+    "qiskit-nature",
+    "pyscf",
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib",
+]
+
+[project.scripts]
+vqe-lih = "vqe_lih.cli:main"
+
+[tool.uv.sources]
+qcc-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

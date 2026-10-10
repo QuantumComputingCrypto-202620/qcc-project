@@ -1,0 +1,23 @@
+[tool.uv.workspace]
+members = ["packages/*", "projects/*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "ipykernel>=6",
+    "jupyterlab>=4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/notebooks/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "NPY"]
+
+[tool.pytest.ini_options]
+# importlib mode lets every member have tests/test_*.py files with the same names.
+addopts = ["--import-mode=importlib"]
+markers = ["slow: long-running simulation tests (deselect with -m 'not slow')"]
