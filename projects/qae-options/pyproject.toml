@@ -1,0 +1,25 @@
+[project]
+name = "qae-options"
+version = "0.1.0"
+description = "Option pricing with quantum amplitude estimation: QAE, IQAE and MLAE vs Monte Carlo."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "qcc-common",
+    "qiskit",
+    "qiskit-aer",
+    "qiskit-algorithms",
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib",
+]
+
+[project.scripts]
+qae-options = "qae_options.cli:main"
+
+[tool.uv.sources]
+qcc-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

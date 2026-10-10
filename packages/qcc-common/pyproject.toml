@@ -1,0 +1,16 @@
+[project]
+name = "qcc-common"
+version = "0.1.0"
+description = "Shared simulator backends and circuit metrics for qcc-project."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy",
+    "qiskit",
+    "qiskit-aer",
+    # Fake IBM backends (FakeSherbrooke, ...) for noisy_simulator() ship only in this package.
+    "qiskit-ibm-runtime",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

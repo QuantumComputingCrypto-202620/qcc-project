@@ -108,11 +108,14 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["**/notebooks/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "NPY"]
 
 [tool.pytest.ini_options]
+# importlib mode lets every member have tests/test_*.py files with the same names.
+addopts = ["--import-mode=importlib"]
 markers = ["slow: long-running simulation tests (deselect with -m 'not slow')"]
 ```
 
@@ -132,9 +135,6 @@ dependencies = [
     "scipy",
 ]
 
-[project.optional-dependencies]
-ibm = ["qiskit-ibm-runtime"]
-
 [project.scripts]
 qae-options = "qae_options.cli:main"
 
@@ -148,9 +148,8 @@ build-backend = "hatchling.build"
 
 ### 3.3 Python version
 
-`.python-version` pins **3.12**. Week 0 confirms that qiskit, qiskit-aer, qiskit-algorithms,
-qiskit-nature and pyscf all have wheels for it. If any of them does not, the pin drops to 3.11
-and this section is updated.
+`.python-version` pins **3.12**. Week 0 confirmed that qiskit, qiskit-aer, qiskit-algorithms,
+qiskit-nature and pyscf all have wheels for it; the resolved versions are in the README.
 
 ### 3.4 Command cheat-sheet
 
@@ -163,7 +162,7 @@ and this section is updated.
 | Run all fast tests | `uv run pytest -m "not slow"` |
 | Add a dependency to a project | `uv add --package qae-options scipy` |
 | Add a dev tool repo-wide | `uv add --dev mypy` |
-| Add an optional extra | `uv add --package vqe-lih --optional ibm qiskit-ibm-runtime` |
+| Add an optional extra | `uv add --package vqe-lih --optional stretch <pkg>` |
 | Upgrade one package in the lock | `uv lock --upgrade-package qiskit` |
 | Verify the lock is up to date (CI) | `uv lock --check` |
 | Start Jupyter | `uv run --package vqe-lih jupyter lab` |
@@ -172,7 +171,10 @@ Rules:
 
 - `uv.lock` is always committed. Any change to dependencies is a `uv add` or `uv remove`
   followed by a commit that includes the lockfile.
-- Only `--extra ibm` pulls in hardware dependencies, so the default install stays simulator-only.
+- `qiskit-ibm-runtime` is a core dependency of `qcc-common`, because the fake IBM backends
+  that `noisy_simulator` needs (`FakeSherbrooke`, …) ship only in that package since Qiskit 1.0.
+  Installing it does not touch hardware: real-device access still needs an explicit
+  `ibm_runtime_session()` call and a token (§5.4).
 
 ### 3.5 Single lockfile: implications
 
@@ -192,8 +194,8 @@ This package contains only code that both projects need. Every module is small a
 
 | Module | Responsibility |
 |---|---|
-| `backends` | `statevector_simulator()`, `shot_simulator(shots, seed)`, `noisy_simulator(fake_backend="FakeSherbrooke", scale=1.0)`. An optional `ibm_runtime_session()` reads `QISKIT_IBM_TOKEN` from the environment and is imported lazily, so the `ibm` extra stays optional. |
-| `metrics` | `circuit_metrics(circuit, basis=..., optimization_level=...) -> {num_qubits, depth, two_qubit_gates, num_parameters}`. Transpilation uses one fixed basis and optimization level so numbers are comparable across projects. |
+| `backends` | `statevector_simulator()`, `shot_simulator(shots, seed)`, `noisy_simulator(fake_backend="FakeSherbrooke", scale=1.0)`. `scale` multiplies every gate and readout error rate and divides T1/T2. `ibm_runtime_session()` reads `QISKIT_IBM_TOKEN` from the environment or `.env`. |
+| `metrics` | `circuit_metrics(circuit, basis=..., optimization_level=..., seed_transpiler=...) -> {num_qubits, num_parameters, logical_depth, depth, two_qubit_gates, transpile}`. Transpilation uses one fixed basis ({rz, sx, x, ecr}), optimization level 2, a fixed seed and a linear coupling map, so numbers are comparable across projects; `transpile` records those settings. `logical_depth` is the depth after unrolling to {u, cx} without mapping or optimization. |
 | `results` | `ExperimentRecord` (config dict, seed, git SHA, `uv.lock` hash, package versions, timestamp, metrics, payload). It provides `save()`/`load()` to JSON (small) or Parquet (sweeps) under `results/raw/`. |
 | `plotting` | Shared matplotlib style, `loglog_with_fit(x, y, yerr)` that returns the fitted slope, and helpers for consistent figure sizes and labels. |
 
@@ -258,13 +260,13 @@ project configs.
 
 ### Week 0: shared scaffold (before either project's week 1)
 
-- [ ] Root `pyproject.toml`, `.python-version`, `.gitignore` (`.venv/`, `results/raw/`, `.env`, `.ipynb_checkpoints/`)
-- [ ] `packages/qcc-common` skeleton with `backends` and `metrics`, plus tests
-- [ ] `uv init --package` for `projects/qae-options` and `projects/vqe-lih`
-- [ ] `uv lock` resolves qiskit, qiskit-aer, qiskit-algorithms and qiskit-nature + pyscf together; resolved versions recorded in the README
-- [ ] Smoke test: a Bell circuit on the Aer simulator through `qcc_common.backends`, and `circuit_metrics` on it
+- [x] Root `pyproject.toml`, `.python-version`, `.gitignore` (`.venv/`, `results/raw/`, `.env`, `.ipynb_checkpoints/`)
+- [x] `packages/qcc-common` skeleton with `backends` and `metrics`, plus tests
+- [x] `uv init --package` for `projects/qae-options` and `projects/vqe-lih`
+- [x] `uv lock` resolves qiskit, qiskit-aer, qiskit-algorithms and qiskit-nature + pyscf together; resolved versions recorded in the README
+- [x] Smoke test: a Bell circuit on the Aer simulator through `qcc_common.backends`, and `circuit_metrics` on it
 - [ ] CI green on an empty test suite
-- [ ] `README.md` quickstart
+- [x] `README.md` quickstart
 
 **Done when:** a fresh clone runs `uv sync --all-packages && uv run pytest` with everything
 passing.

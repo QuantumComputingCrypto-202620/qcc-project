@@ -144,7 +144,8 @@ projects/qae-options/
 Dependencies:
 - Core: `qcc-common` (workspace), `qiskit`, `qiskit-aer`, `qiskit-algorithms`, `numpy`,
   `scipy`, `pandas`, `matplotlib`.
-- Optional extra `ibm`: `qiskit-ibm-runtime`.
+- Hardware access (E6) uses `qiskit-ibm-runtime`, which comes in through `qcc-common`
+  (root SPEC §3.4).
 - `qiskit-finance` is **not** a dependency: the circuits are built here (see §10).
 
 ```bash

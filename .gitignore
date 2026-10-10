@@ -1,0 +1,19 @@
+# Environments and secrets
+.venv/
+.env
+
+# Python / tooling caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Raw experiment outputs (summaries and figures are committed)
+projects/*/results/raw/*
+!projects/*/results/raw/.gitkeep

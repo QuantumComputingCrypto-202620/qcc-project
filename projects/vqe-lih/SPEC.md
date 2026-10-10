@@ -140,8 +140,8 @@ projects/vqe-lih/
 Dependencies:
 - Core: `qcc-common` (workspace), `qiskit`, `qiskit-aer`, `qiskit-algorithms`,
   `qiskit-nature`, `pyscf`, `numpy`, `scipy`, `pandas`, `matplotlib`.
-- Optional extra `ibm`: `qiskit-ibm-runtime`. This provides EstimatorV2 with built-in
-  resilience options: TREX readout mitigation and ZNE.
+- `qiskit-ibm-runtime` comes in through `qcc-common` (root SPEC §3.4). It provides EstimatorV2
+  with built-in resilience options: TREX readout mitigation and ZNE.
 
 ```bash
 uv sync --package vqe-lih
