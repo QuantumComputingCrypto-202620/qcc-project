@@ -78,3 +78,19 @@ def test_missing_ibm_token_raises(monkeypatch, tmp_path):
     monkeypatch.delenv(backends.TOKEN_ENV_VAR, raising=False)
     with pytest.raises(RuntimeError, match="QISKIT_IBM_TOKEN"):
         read_ibm_token(tmp_path / ".env")
+
+
+def test_noise_scale_applies_to_gates_and_relaxation():
+    """Gate/readout errors scale by ``scale`` and T1/T2 by 1/scale (regression: T1/T2 edits
+    in place were silently lost, leaving full-strength relaxation at every scale)."""
+    from qcc_common.backends import get_fake_backend, scaled_noise_model
+
+    totals, t1s = {}, {}
+    for scale in (0.1, 1.0):
+        backend = get_fake_backend()
+        qargs = next(iter(backend.target["ecr"]))
+        model = scaled_noise_model(backend, scale)
+        totals[scale] = 1 - model._local_quantum_errors["ecr"][qargs].probabilities[0]
+        t1s[scale] = backend.target.qubit_properties[0].t1
+    assert t1s[0.1] == pytest.approx(10 * t1s[1.0])
+    assert totals[0.1] == pytest.approx(0.1 * totals[1.0], rel=0.2)

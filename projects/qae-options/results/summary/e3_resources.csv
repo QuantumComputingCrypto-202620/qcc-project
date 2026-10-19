@@ -1,0 +1,8 @@
+variant,operating_point,reaches_epsilon,median_queries,num_qubits,depth,two_qubit_gates
+QAE (MLE post-processing),m = 6,True,12700,12,6755934,1797728
+QAE (grid),not reached up to m = 8,False,,,,
+IQAE,"ε_target = 0.01, largest k = 12",True,3650,6,176252,54986
+MLAE,"M = 4, largest k = 16",True,6800,6,232676,72610
+A operator alone,k = 0,,,6,6980,2114
+barrier digital (stretch),k = 0,,,9,681,254
+barrier digital (stretch),k = 1,,,9,3883,1582

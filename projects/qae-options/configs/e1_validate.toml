@@ -1,0 +1,29 @@
+# E1: pipeline validation. GBM lognormal (Black-Scholes reference), n = 3-5, European call
+# (two rescaling factors c) and digital call, all three estimators at high precision.
+experiment = "e1"
+n_values = [3, 4, 5]
+estimators = [["iqae", 1e-4], ["mlae", 6], ["qae", 8]]
+shots = 100
+repetitions = 10
+seed = 100
+workers = 4
+payoffs = [
+    { type = "call", strike = 100.0, rescaling_factor = 0.25 },
+    { type = "call", strike = 100.0, rescaling_factor = 0.05 },
+    { type = "digital", strike = 100.0, payout = 1.0 },
+]
+
+[model]
+distribution = "lognormal"
+s0 = 100.0
+r = 0.04
+sigma = 0.2
+maturity = 1.0
+
+# Stretch: up-and-out digital, monitored at t1 = 0.5 and T = 1 (pays if S_t1 < 120 and S_T >= 100).
+[barrier]
+n = 3
+t1 = 0.5
+barrier = 120.0
+strike = 100.0
+estimators = [["iqae", 1e-3], ["mlae", 5]]

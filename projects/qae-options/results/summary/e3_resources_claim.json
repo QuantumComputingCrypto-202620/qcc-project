@@ -1,0 +1,29 @@
+{
+ "epsilon": 0.001,
+ "X_iqae_queries": {
+  "queries": 3658.9896948023656,
+  "how": "interpolated"
+ },
+ "Y_mc_samples": {
+  "queries": 117102.20728151404,
+  "how": "interpolated"
+ },
+ "Z_extra_qubits_qae": 6,
+ "W_depth_ratio_qae_over_iqae": 38.33110546263305,
+ "qae_operating_point": "m = 6",
+ "iqae_operating_point": "\u03b5_target = 0.01, largest k = 12",
+ "also": {
+  "mlae_queries": {
+   "queries": 5514.627835241682,
+   "how": "interpolated"
+  },
+  "qmc_samples": {
+   "queries": 171.5598156620701,
+   "how": "interpolated"
+  },
+  "qae_mle_queries": {
+   "queries": 9446.963360592135,
+   "how": "interpolated"
+  }
+ }
+}

@@ -1,0 +1,21 @@
+# E5: cost of loading the distribution (generic StatePreparation) vs n, and its share of A.
+experiment = "e5"
+n_values = [3, 4, 5, 6, 7]
+strike = 100.0
+
+[models.lognormal]
+distribution = "lognormal"
+s0 = 100.0
+r = 0.04
+sigma = 0.2
+maturity = 1.0
+
+[models.bimodal]
+distribution = "bimodal"
+w = 0.4
+center1 = 85.0
+sigma1 = 0.10
+center2 = 115.0
+sigma2 = 0.10
+r = 0.03
+maturity = 0.5

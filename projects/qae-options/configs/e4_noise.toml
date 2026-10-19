@@ -1,0 +1,35 @@
+# E4: the quantum part of E2 on a FakeSherbrooke noise model scaled by 0.1, 0.3 and 1.0, plus a
+# noiseless baseline. n = 3 so gate-level noisy simulation of deep Grover powers stays feasible.
+experiment = "e4"
+n = 3
+shots = 100
+repetitions = 20
+chunk = 10
+seed = 400
+epsilon = 1e-3
+fake_backend = "FakeSherbrooke"
+noise_scales = [0.01, 0.03, 0.1, 0.3, 1.0]   # spec: 0.1, 0.3, 1.0; lower scales locate the frontier
+contrast_powers = [0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+contrast_shots = 4000
+workers = 4
+
+[sweeps]
+mlae = [0, 1, 2, 3, 4, 5]
+iqae = [1e-1, 3e-2, 1e-2]
+
+# Binary event before expiry (e.g. a regulatory decision): 40 % "bad news" mode around 85,
+# 60 % "good news" mode around 115; log-price widths 0.10.
+[model]
+distribution = "bimodal"
+w = 0.4
+center1 = 85.0
+sigma1 = 0.10
+center2 = 115.0
+sigma2 = 0.10
+r = 0.03
+maturity = 0.5
+
+[payoff]
+type = "digital"
+strike = 100.0
+payout = 1.0

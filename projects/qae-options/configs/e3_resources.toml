@@ -1,0 +1,35 @@
+# E3: circuit cost of each variant at the operating point where its E2 median error reaches
+# epsilon within 5 % (QAE: smallest m; IQAE / MLAE: largest Grover power used there). Fills in Z, W.
+experiment = "e3"
+source = "e2_convergence"
+n = 5
+
+# Binary event before expiry (e.g. a regulatory decision): 40 % "bad news" mode around 85,
+# 60 % "good news" mode around 115; log-price widths 0.10.
+[model]
+distribution = "bimodal"
+w = 0.4
+center1 = 85.0
+sigma1 = 0.10
+center2 = 115.0
+sigma2 = 0.10
+r = 0.03
+maturity = 0.5
+
+[payoff]
+type = "digital"
+strike = 100.0
+payout = 1.0
+
+# Stretch: resources of the barrier A operator (n = 3 per date) and one Grover iteration.
+[barrier]
+n = 3
+t1 = 0.5
+barrier = 120.0
+strike = 100.0
+
+[barrier_model]
+s0 = 100.0
+r = 0.04
+sigma = 0.2
+maturity = 1.0

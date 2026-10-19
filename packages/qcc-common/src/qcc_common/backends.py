@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from qiskit.providers import QubitProperties
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel
 
@@ -65,11 +66,16 @@ def scaled_noise_model(backend: BackendV2, scale: float) -> NoiseModel:
             for props in target[op_name].values():
                 if props is not None and props.error is not None:
                     props.error = min(props.error * scale, 1.0)
-        for qubit_props in target.qubit_properties or []:
-            if qubit_props.t1 is not None:
-                qubit_props.t1 /= scale
-            if qubit_props.t2 is not None:
-                qubit_props.t2 /= scale
+        if target.qubit_properties:
+            # Assign a new list: editing the QubitProperties objects in place does not persist.
+            target.qubit_properties = [
+                QubitProperties(
+                    t1=None if qp.t1 is None else qp.t1 / scale,
+                    t2=None if qp.t2 is None else qp.t2 / scale,
+                    frequency=qp.frequency,
+                )
+                for qp in target.qubit_properties
+            ]
     return NoiseModel.from_backend(backend)
 
 

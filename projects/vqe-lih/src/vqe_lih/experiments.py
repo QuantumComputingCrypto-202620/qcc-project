@@ -7,14 +7,11 @@ histories, gitignored), ``results/summary/<name>*.csv`` (committed) and
 
 from __future__ import annotations
 
-import hashlib
 import itertools
 import json
-import multiprocessing as mp
 import sys
 import tomllib
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from qcc_common.metrics import circuit_metrics
+from qcc_common.parallel import parallel_map
 from qcc_common.results import ExperimentRecord, to_jsonable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -92,41 +90,7 @@ def load_summary(config: dict, name: str) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def _job_key(job: dict) -> str:
-    blob = json.dumps(to_jsonable(job), sort_keys=True)
-    return hashlib.sha256(blob.encode()).hexdigest()[:16]
-
-
-def _checkpointed(args: tuple[Callable, dict]):
-    """Run ``fn(job)`` unless its result is already in ``job["_checkpoint"]``."""
-    fn, job = args
-    path = Path(job["_checkpoint"])
-    if path.is_file():
-        return json.loads(path.read_text())
-    result = to_jsonable(fn(job))
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(result))
-    tmp.replace(path)
-    return result
-
-
-def _parallel_map(
-    fn: Callable, jobs: list, workers: int, checkpoint_dir: Path | None = None
-) -> list:
-    """Map ``fn`` over ``jobs`` in worker processes. With ``checkpoint_dir``, every finished
-    job is saved there and skipped on a rerun, so an interrupted experiment resumes."""
-    if checkpoint_dir is not None:
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        jobs = [
-            {**job, "_checkpoint": str(checkpoint_dir / f"{_job_key(job)}.json")} for job in jobs
-        ]
-    args = [(fn, job) if checkpoint_dir is not None else job for job in jobs]
-    call = _checkpointed if checkpoint_dir is not None else fn
-    if workers <= 1 or len(jobs) <= 1:
-        return [call(a) for a in args]
-    ctx = mp.get_context("spawn")
-    with ProcessPoolExecutor(max_workers=min(workers, len(jobs)), mp_context=ctx) as pool:
-        return list(pool.map(call, args))
+_parallel_map = parallel_map
 
 
 def _strip(row: dict) -> dict:
