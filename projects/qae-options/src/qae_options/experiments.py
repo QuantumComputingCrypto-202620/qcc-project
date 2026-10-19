@@ -541,8 +541,12 @@ def run_resources(config: dict) -> pd.DataFrame:
     eps = fits["epsilon"]
     problem, _, _ = build_problem(config["model"], config["payoff"], config["n"])
 
+    # A setting "reaches" eps if its median error is within a small tolerance of eps, so the
+    # operating point matches the interpolated X/Y of E2 (e.g. median 1.003e-3 for eps=1e-3).
+    limit = eps * (1 + config.get("epsilon_tolerance", 0.05))
+
     def first_reaching(method):
-        s = stats[(stats.method == method) & (stats.median_error <= eps)].sort_values(
+        s = stats[(stats.method == method) & (stats.median_error <= limit)].sort_values(
             "median_queries"
         )
         return None if s.empty else s.iloc[0]

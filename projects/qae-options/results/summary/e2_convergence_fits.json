@@ -1,0 +1,67 @@
+{
+ "epsilon": 0.001,
+ "fits": {
+  "iqae": {
+   "slope": -1.0073354274634696,
+   "slope_std": 0.05801527300211896,
+   "intercept": 0.637722283886026,
+   "points": 7
+  },
+  "mc": {
+   "slope": -0.5220382798403062,
+   "slope_std": 0.006017850969062198,
+   "intercept": -0.3969030557937246,
+   "points": 11
+  },
+  "mlae": {
+   "slope": -0.9161862231471213,
+   "slope_std": 0.02441025903228519,
+   "intercept": 0.40441597827012804,
+   "points": 8
+  },
+  "qae": {
+   "slope": -0.7824099001576712,
+   "slope_std": 0.08993274596286505,
+   "intercept": 1.3735726344460144,
+   "points": 8
+  },
+  "qae_mle": {
+   "slope": -0.9974813572432815,
+   "slope_std": 0.06881951508803151,
+   "intercept": 1.0595922209082078,
+   "points": 8
+  },
+  "qmc": {
+   "slope": -0.8601316370619002,
+   "slope_std": 0.08977900311843014,
+   "intercept": -1.2418034151929473,
+   "points": 7
+  }
+ },
+ "queries_for_epsilon": {
+  "iqae": {
+   "queries": 3658.9896948023656,
+   "how": "interpolated"
+  },
+  "mc": {
+   "queries": 117102.20728151404,
+   "how": "interpolated"
+  },
+  "mlae": {
+   "queries": 5514.627835241682,
+   "how": "interpolated"
+  },
+  "qae": {
+   "queries": 388932.14767457644,
+   "how": "extrapolated from fit"
+  },
+  "qae_mle": {
+   "queries": 9446.963360592135,
+   "how": "interpolated"
+  },
+  "qmc": {
+   "queries": 171.5598156620701,
+   "how": "interpolated"
+  }
+ }
+}

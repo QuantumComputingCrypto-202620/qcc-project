@@ -1,5 +1,5 @@
 # E3: circuit cost of each variant at the operating point where its E2 median error reaches
-# epsilon (QAE: smallest m; IQAE / MLAE: largest Grover power used there). Fills in Z and W.
+# epsilon within 5 % (QAE: smallest m; IQAE / MLAE: largest Grover power used there). Fills in Z, W.
 experiment = "e3"
 source = "e2_convergence"
 n = 5
