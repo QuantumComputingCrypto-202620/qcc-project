@@ -1,0 +1,34 @@
+# E2: UCCSD along the LiH curve, warm-started outwards from equilibrium, L-BFGS-B, exact estimator.
+experiment = "e2"
+molecule = "LiH"
+basis = "sto3g"
+mapper = "jordan_wigner"
+curve = "curve.toml"
+seed = 200
+workers = 2
+
+[optimizer]
+name = "l_bfgs_b"
+maxiter = 1000
+
+[first_point]
+init = "zeros"  # = Hartree-Fock for UCCSD
+
+[[ansatze]]
+type = "uccsd"
+
+[[active_spaces]]
+# Default (SPEC §3): Li 1s frozen, σ orbitals only -> (2e, 3o), 6 qubits.
+label = "2e3o"
+freeze_core = true
+num_electrons = 2
+num_spatial_orbitals = 3
+orbitals = "sigma"
+
+[[active_spaces]]
+# Week-4 decision: 4 electrons (Li 1s active), σ orbitals only -> (4e, 4o), 8 qubits.
+label = "4e4o"
+freeze_core = false
+num_electrons = 4
+num_spatial_orbitals = 4
+orbitals = "sigma"

@@ -1,7 +1,8 @@
-from qcc_common.metrics import DEFAULT_BASIS, circuit_metrics, two_qubit_gate_count
 from qiskit import QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import efficient_su2
+
+from qcc_common.metrics import DEFAULT_BASIS, circuit_metrics, two_qubit_gate_count
 
 
 def bell() -> QuantumCircuit:

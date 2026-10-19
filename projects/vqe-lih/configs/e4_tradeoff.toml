@@ -1,0 +1,5 @@
+# E4: depth vs accuracy from the E2 and E3 summaries; fills in the claim fields.
+experiment = "e4"
+inputs = ["e2_uccsd", "e3_hea"]
+equilibrium_max_r = 2.0        # "near equilibrium" = R <= 2.0 Å
+near_dissociation_min_r = 2.5  # "near dissociation" = R >= 2.5 Å

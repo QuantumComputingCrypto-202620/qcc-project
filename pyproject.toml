@@ -17,6 +17,9 @@ extend-exclude = ["**/notebooks/**"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "NPY"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["qcc_common", "qae_options", "vqe_lih"]
+
 [tool.pytest.ini_options]
 # importlib mode lets every member have tests/test_*.py files with the same names.
 addopts = ["--import-mode=importlib"]
