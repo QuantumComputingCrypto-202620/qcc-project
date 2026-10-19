@@ -16,16 +16,31 @@ from vqe_lih.hamiltonian import QubitHamiltonian
 
 CHEMICAL_ACCURACY = 1.6e-3  # Ha (about 1 kcal/mol)
 SECTOR_TOLERANCE = 1e-2
-DEFAULT_MAXITER = {"cobyla": 1000, "l_bfgs_b": 1000, "slsqp": 1000, "spsa": 300}
+DEFAULT_MAXITER = {"cobyla": 1000, "l_bfgs_b": 1000, "slsqp": 1000, "spsa": 300, "spsa_small": 300}
+SPSA_SMALL_STEP = 0.05  # rad: first-step and perturbation size for ``spsa_small``
+
+
+class SmallStepSPSA(SPSA):
+    """SPSA with the standard power-series calibration, but targeting a first step (and
+    perturbation) of ``SPSA_SMALL_STEP`` rad instead of the default 2π/10 ≈ 0.63 rad, which is
+    far larger than typical UCCSD amplitudes (~0.05 rad)."""
+
+    def minimize(self, fun, x0, jac=None, bounds=None):
+        self.learning_rate, self.perturbation = self.calibrate(
+            fun, np.asarray(x0), c=SPSA_SMALL_STEP, target_magnitude=SPSA_SMALL_STEP
+        )
+        return super().minimize(fun, x0, jac, bounds)
+
+
 RANDOM_INIT_SCALE = 0.1
 
 
 def make_optimizer(name: str, maxiter: int | None = None, seed: int | None = None) -> Optimizer:
     name = name.lower()
     maxiter = maxiter or DEFAULT_MAXITER[name]
-    if name == "spsa":
+    if name in ("spsa", "spsa_small"):
         algorithm_globals.random_seed = seed  # SPSA draws its perturbations from here
-        return SPSA(maxiter=maxiter)
+        return SPSA(maxiter=maxiter) if name == "spsa" else SmallStepSPSA(maxiter=maxiter)
     optimizers = {"cobyla": COBYLA, "l_bfgs_b": L_BFGS_B, "slsqp": SLSQP}
     return optimizers[name](maxiter=maxiter)
 

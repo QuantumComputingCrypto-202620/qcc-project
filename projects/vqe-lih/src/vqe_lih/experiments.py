@@ -28,7 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = PROJECT_ROOT / "results"
 CHEM_ACC_MHA = 1.6
 ANSATZ_SLOTS = {"uccsd": 0, "hea_r1": 1, "hea_r2": 2, "hea_r3": 3, "hea_r4": 4}
-OPTIMIZER_SLOTS = {"l_bfgs_b": 0, "cobyla": 1, "spsa": 2}
+OPTIMIZER_SLOTS = {"l_bfgs_b": 0, "cobyla": 1, "spsa": 2, "spsa_small": 3}
 INIT_SLOTS = {"zeros": 0, "random": 1, "warm_start": 2}
 DELTA_E_FLOOR = 1e-9  # Ha; ΔE below this is plotted at the floor on log axes
 
