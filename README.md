@@ -5,7 +5,7 @@ Python with Qiskit. The repo-wide design is in [SPEC.md](SPEC.md).
 
 | Project | Spec | Summary |
 |---|---|---|
-| [`projects/qae-options`](projects/qae-options/) | [SPEC](projects/qae-options/SPEC.md) | QAE, IQAE and MLAE vs classical Monte Carlo for a digital payoff on a bimodal distribution. |
+| [`projects/qae-options`](projects/qae-options/) | [SPEC](projects/qae-options/SPEC.md) · [REPORT](projects/qae-options/REPORT.md) | QAE, IQAE and MLAE vs classical Monte Carlo for a digital payoff on a bimodal distribution. **Complete.** |
 | [`projects/vqe-lih`](projects/vqe-lih/) | [SPEC](projects/vqe-lih/SPEC.md) · [REPORT](projects/vqe-lih/REPORT.md) | UCCSD vs a hardware-efficient ansatz along the full LiH dissociation curve. **Complete.** |
 
 Shared code lives in [`packages/qcc-common`](packages/qcc-common/): simulator backends

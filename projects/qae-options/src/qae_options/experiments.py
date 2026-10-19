@@ -766,6 +766,7 @@ def run_noise(config: dict) -> pd.DataFrame:
 
 def plot_noise(config, stats, contrast, figdir):
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import NullFormatter
 
     from qcc_common.plotting import MUTED, REFERENCE, apply_style, save_figure, series_style
 
@@ -791,6 +792,7 @@ def plot_noise(config, stats, contrast, figdir):
             ax.plot(s.median_queries, np.maximum(s.median_error, 1e-6), label=label, **style)
         ax.axhline(config.get("epsilon", 1e-3), color=REFERENCE, linestyle="--", linewidth=1.0)
         ax.set(xscale="log", yscale="log", xlabel="oracle queries", title=METHOD_LABELS[method])
+        ax.xaxis.set_minor_formatter(NullFormatter())  # minor labels collide on short ranges
         ax.legend(loc="lower left", fontsize=7.5)
     np.atleast_1d(axes)[0].set_ylabel("|estimate − exact| (price units)")
     fig.suptitle(

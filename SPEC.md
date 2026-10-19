@@ -197,7 +197,8 @@ This package contains only code that both projects need. Every module is small a
 | `backends` | `statevector_simulator()`, `shot_simulator(shots, seed)`, `noisy_simulator(fake_backend="FakeSherbrooke", scale=1.0)`. `scale` multiplies every gate and readout error rate and divides T1/T2. `ibm_runtime_session()` reads `QISKIT_IBM_TOKEN` from the environment or `.env`. |
 | `metrics` | `circuit_metrics(circuit, basis=..., optimization_level=..., seed_transpiler=...) -> {num_qubits, num_parameters, logical_depth, depth, two_qubit_gates, transpile}`. Transpilation uses one fixed basis ({rz, sx, x, ecr}), optimization level 2, a fixed seed and a linear coupling map, so numbers are comparable across projects; `transpile` records those settings. `logical_depth` is the depth after unrolling to {u, cx} without mapping or optimization. |
 | `results` | `ExperimentRecord` (config dict, seed, git SHA, `uv.lock` hash, package versions, timestamp, metrics, payload). It provides `save()`/`load()` to JSON under `results/raw/`. Parquet for large sweeps is added when a project needs it. |
-| `plotting` | Shared matplotlib style (`apply_style`), a validated categorical palette with per-series markers (`series_style`), standard figure sizes, and `save_figure` (PNG + PDF). `loglog_with_fit(x, y, yerr)` is planned for qae-options. |
+| `plotting` | Shared matplotlib style (`apply_style`), a validated categorical palette with per-series markers (`series_style`), standard figure sizes, and `save_figure` (PNG + PDF). Log-log slope fits live in qae-options, the only project that needs them. |
+| `parallel` | `parallel_map(fn, jobs, workers, checkpoint_dir)`: runs experiment jobs in worker processes and checkpoints each finished job, so an interrupted run resumes. |
 
 What does **not** belong here: anything about finance or chemistry, algorithm wrappers,
 project configs.

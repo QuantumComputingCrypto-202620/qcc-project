@@ -23,6 +23,11 @@ in practice. It does not assume the quantum method wins.
 > samples; the QPE-based version uses **Z** more qubits and a transpiled depth **W** times
 > larger."
 
+**Result** (see [REPORT.md](REPORT.md) §1): X ≈ 3,700 IQAE queries vs Y ≈ 117,000 MC samples;
+Z = 6 more qubits and W ≈ 38× larger depth for QPE-based QAE (m = 6, MLE post-processing).
+Scrambled-Sobol QMC needs only ≈ 170 samples, and on the FakeSherbrooke noise model at ≥ 10 % of
+its strength the frontier is below k = 1, so no estimator reaches ε.
+
 Non-goals:
 - No claim of quantum advantage.
 - No results on real hardware beyond one optional short run.
@@ -85,9 +90,22 @@ error, so every measured error is **estimation** error.
 
 ## 4. Estimators
 
-All three quantum estimators come from `qiskit-algorithms` and use a shot-based Sampler
-primitive (Aer, seeded). Week 1 checks whether the pinned qiskit-algorithms version expects V1
-or V2 primitives.
+All three quantum estimators come from `qiskit-algorithms` (0.4: V2 primitives) and use a
+seeded shot-based SamplerV2.
+
+**Implementation notes (recorded during the project).**
+- Noiseless runs use `sampling.ExactDistributionSampler`. It computes each circuit's exact
+  output distribution once, from cached unitaries of its sub-instructions, and draws the shots
+  with a seeded multinomial. This has the same statistics as running the circuit; it is tested
+  against Aer gate-level simulation. Gate-level simulation of Q^k A is infeasible at the k IQAE
+  needs (~10⁷ gates at k ≈ 1,500). Noisy runs (E4) use Aer gate-level simulation.
+- Grover powers (IQAE, MLAE) and controlled powers (canonical QAE) are annotated operations on
+  one Q gate. The circuits are otherwise identical to the library's, with identical output
+  distributions (tested). Qiskit's eager controlled synthesis took over 30 min at m = 8.
+- Canonical QAE is reported with both the library's grid estimate and its MLE
+  post-processing.
+- The circuit cost of deep Grover powers is composed from transpiled components (A, Q,
+  controlled Q, inverse QFT) and checked against direct transpilation at small k.
 
 | Estimator | Class | Accuracy knob | Uses QPE |
 |---|---|---|---|
@@ -131,11 +149,15 @@ projects/qae-options/
 │   ├── distributions.py   # LogNormal, BimodalLogNormal; discretize(n, bounds) -> grid, probs; loader circuit
 │   ├── payoffs.py         # digital_call(), european_call(c), barrier_digital(); returns A, objective qubit, post-processing
 │   ├── estimators.py      # run_qae / run_iqae / run_mlae -> EstimateResult(estimate, ci, oracle_queries, circuits)
+│   ├── sampling.py        # ExactDistributionSampler (seeded SamplerV2; exact noiseless, Aer noisy)
+│   ├── resources.py       # circuit cost of A, Q^k A and canonical QAE from transpiled components
 │   ├── classical.py       # monte_carlo(), quasi_monte_carlo()
 │   ├── reference.py       # black_scholes_call(), mixture_digital(), discretized_exact()
 │   ├── experiments.py     # E1-E6 runners driven by config
 │   └── cli.py             # `qae-options <experiment> --config ...`
 ├── configs/               # e1_validate.toml, e2_convergence.toml, e3_resources.toml, e4_noise.toml, e5_loading.toml
+├── run_all.sh             # regenerates every result in order (resumable)
+├── REPORT.md              # final report
 ├── notebooks/             # exploration and figure assembly only
 ├── tests/
 └── results/{raw,summary,figures}/
@@ -168,9 +190,9 @@ Required fast tests:
 | **E1** | Does the pipeline give correct prices? | Lognormal, European call, n = 3 to 5, all three estimators at high precision | Table comparing each estimate with the discretized-exact and Black-Scholes prices; discretization and c-approximation errors |
 | **E2** | How does error scale with queries? | Bimodal + digital, n fixed (default 5); sweep the knob of each estimator plus MC (and QMC); R = 50 | Log-log plot of error vs oracle queries with error bands and fitted slopes (expect ≈ −1 for the QAE variants, ≈ −½ for MC); fills in X and Y |
 | **E3** | What does each variant cost in hardware resources? | Same A operator; QAE at the m needed for ε = 10⁻³, IQAE and MLAE at their largest k | Table of qubits, depth and 2q gates per variant; fills in Z and W |
-| **E4** | At what depth does noise remove the convergence advantage? | E2 repeated on `noisy_simulator` (fake IBM backend) with noise scale ∈ {0.1, 0.3, 1.0} | Error vs queries under noise; the largest useful Grover power k* and its depth, i.e. the "frontier" |
+| **E4** | At what depth does noise remove the convergence advantage? | E2 repeated on `noisy_simulator` (fake IBM backend) with noise scale ∈ {0.1, 0.3, 1.0}. **As run:** n = 3 (gate-level noisy simulation), MLAE and IQAE, R = 20, with scales 0.01 and 0.03 added to locate the frontier | Error vs queries under noise; the largest useful Grover power k* and its depth, i.e. the "frontier" |
 | **E5** | How much does loading the distribution cost? | Loader depth and 2q gates vs n = 3 to 7, lognormal vs bimodal; share of the total A-operator depth | Plot and discussion of loading as a possible bottleneck that can cancel the quadratic speedup |
-| E6 (optional) | Does it run on real hardware? | IBM backend, digital payoff, n = 3, IQAE with small k, a few shots | Estimate compared with the simulator and the noisy simulator |
+| E6 (optional) | Does it run on real hardware? | IBM backend, digital payoff, n = 3, IQAE with small k, a few shots. **Not run:** no IBM Quantum access | Estimate compared with the simulator and the noisy simulator |
 | Stretch | Barrier payoff | Barrier digital at n = 3 per date (6 + ancilla qubits) | E1 and E3 rows for the barrier |
 
 ## 8. Milestones
@@ -187,14 +209,14 @@ Required fast tests:
 | 8 | Final figures, report, conclusions | All figures in `results/figures/`; claim stated with numbers; README updated |
 
 Checklist:
-- [ ] E1 validation
-- [ ] E2 convergence
-- [ ] E3 resources
-- [ ] E4 noise frontier
-- [ ] E5 loading cost
-- [ ] E6 hardware (optional)
-- [ ] Barrier (stretch)
-- [ ] Report
+- [x] E1 validation
+- [x] E2 convergence
+- [x] E3 resources
+- [x] E4 noise frontier
+- [x] E5 loading cost
+- [ ] E6 hardware (optional): not run, no IBM Quantum access
+- [x] Barrier (stretch): E1 and E3 rows, n = 3 per date
+- [x] Report
 
 ## 9. Acceptance criteria
 

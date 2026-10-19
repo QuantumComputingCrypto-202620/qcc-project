@@ -6,17 +6,31 @@
   "device_depth_at_k_star": null,
   "device_two_qubit_gates_at_k_star": null
  },
+ "0.01": {
+  "best_M": 5,
+  "k_star": 32,
+  "median_error_at_best": 0.0025730482018152534,
+  "device_depth_at_k_star": 29275,
+  "device_two_qubit_gates_at_k_star": 7908
+ },
+ "0.03": {
+  "best_M": 2,
+  "k_star": 4,
+  "median_error_at_best": 0.0022528972945665693,
+  "device_depth_at_k_star": 3979,
+  "device_two_qubit_gates_at_k_star": 1076
+ },
  "0.1": {
   "best_M": 0,
   "k_star": 1,
-  "median_error_at_best": 0.08428082566777795,
+  "median_error_at_best": 0.02503082822982794,
   "device_depth_at_k_star": 1268,
   "device_two_qubit_gates_at_k_star": 344
  },
  "0.3": {
   "best_M": 0,
   "k_star": 1,
-  "median_error_at_best": 0.08478191911829813,
+  "median_error_at_best": 0.05701762784451159,
   "device_depth_at_k_star": 1268,
   "device_two_qubit_gates_at_k_star": 344
  },
