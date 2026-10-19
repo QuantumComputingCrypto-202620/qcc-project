@@ -85,3 +85,43 @@ def test_classical_estimators(problem):
     assert qmc == pytest.approx(target, abs=2e-3)
     with pytest.raises(ValueError):
         quasi_monte_carlo(BIMODAL, lambda s: s, 1000, 1, 1.0)
+
+
+def test_lazy_circuits_match_library_circuits(problem):
+    """The annotated-power circuits used by run_iqae / run_mlae give the same distributions as
+    the circuits qiskit-algorithms builds."""
+    from qiskit_algorithms import MaximumLikelihoodAmplitudeEstimation
+
+    from qae_options.estimators import (
+        LazyIterativeAmplitudeEstimation,
+        LazyMaximumLikelihoodAmplitudeEstimation,
+    )
+
+    ep = problem.estimation_problem()
+    obj = [problem.objective_qubit]
+    for k in (1, 5):
+        ref = IterativeAmplitudeEstimation(0.01, 0.05).construct_circuit(ep, k)
+        lazy = LazyIterativeAmplitudeEstimation(0.01, 0.05).construct_circuit(ep, k)
+        assert np.allclose(
+            exact_statevector(ref, {}).probabilities(obj),
+            exact_statevector(lazy, {}).probabilities(obj),
+            atol=1e-12,
+        )
+    refs = MaximumLikelihoodAmplitudeEstimation([0, 1, 4]).construct_circuits(ep)
+    lazies = LazyMaximumLikelihoodAmplitudeEstimation([0, 1, 4]).construct_circuits(ep)
+    for ref, lazy in zip(refs, lazies, strict=True):
+        assert np.allclose(
+            exact_statevector(ref, {}).probabilities(obj),
+            exact_statevector(lazy, {}).probabilities(obj),
+            atol=1e-12,
+        )
+
+
+def test_cache_key_distinguishes_grover_powers(problem):
+    from qae_options.estimators import LazyIterativeAmplitudeEstimation
+    from qae_options.sampling import circuit_key
+
+    ep = problem.estimation_problem()
+    build = LazyIterativeAmplitudeEstimation(0.01, 0.05).construct_circuit
+    assert circuit_key(build(ep, 1, True)) != circuit_key(build(ep, 2, True))
+    assert circuit_key(build(ep, 2, True)) == circuit_key(build(ep, 2, True))

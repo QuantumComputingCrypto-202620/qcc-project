@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
+from qiskit.circuit import AnnotatedOperation
+from qiskit.circuit.annotated_operation import ControlModifier, PowerModifier
 from qiskit_algorithms import (
     AmplitudeEstimation,
     IterativeAmplitudeEstimation,
@@ -41,6 +43,75 @@ def schedule_queries(powers: list[int], shots: int) -> int:
     return int(sum(shots * (2 * k + 1) for k in powers))
 
 
+def grover_power(estimation_problem, power: int, num_controls: int = 0) -> AnnotatedOperation:
+    """Q^power (optionally controlled) as one lazy annotated operation on a Q gate that is
+    built once per problem. Same unitary as ``grover_operator.power(k)``; the simulator applies
+    it as a matrix power and the transpiler expands it when gates are needed."""
+    gate = estimation_problem.__dict__.get("_q_gate")
+    if gate is None:
+        gate = estimation_problem.grover_operator.to_gate(label="Q")
+        estimation_problem.__dict__["_q_gate"] = gate
+    modifiers = [PowerModifier(power)]
+    if num_controls:
+        modifiers.append(ControlModifier(num_controls))
+    return AnnotatedOperation(gate, modifiers)
+
+
+class LazyIterativeAmplitudeEstimation(IterativeAmplitudeEstimation):
+    """IQAE whose Q^k A circuits use :func:`grover_power` (otherwise identical to
+    ``IterativeAmplitudeEstimation.construct_circuit``)."""
+
+    def construct_circuit(self, estimation_problem, k=0, measurement=False):
+        num_qubits = max(
+            estimation_problem.state_preparation.num_qubits,
+            estimation_problem.grover_operator.num_qubits,
+        )
+        circuit = QuantumCircuit(num_qubits, name="circuit")
+        if measurement:
+            c = ClassicalRegister(len(estimation_problem.objective_qubits))
+            circuit.add_register(c)
+        circuit.compose(estimation_problem.state_preparation, inplace=True)
+        if k != 0:
+            circuit.append(
+                grover_power(estimation_problem, k),
+                range(estimation_problem.grover_operator.num_qubits),
+            )
+        if measurement:
+            circuit.barrier()
+            circuit.measure(estimation_problem.objective_qubits, c[:])
+        return circuit
+
+
+class LazyMaximumLikelihoodAmplitudeEstimation(MaximumLikelihoodAmplitudeEstimation):
+    """MLAE whose circuits use :func:`grover_power` (otherwise identical to
+    ``MaximumLikelihoodAmplitudeEstimation.construct_circuits``)."""
+
+    def construct_circuits(self, estimation_problem, measurement=False):
+        num_qubits = max(
+            estimation_problem.state_preparation.num_qubits,
+            estimation_problem.grover_operator.num_qubits,
+        )
+        q = QuantumRegister(num_qubits, "q")
+        qc_0 = QuantumCircuit(q, name="qc_a")
+        if measurement:
+            c = ClassicalRegister(len(estimation_problem.objective_qubits))
+            qc_0.add_register(c)
+        qc_0.compose(estimation_problem.state_preparation, inplace=True)
+        circuits = []
+        for k in self._evaluation_schedule:
+            qc_k = qc_0.copy(name=f"qc_a_q_{k}")
+            if k != 0:
+                qc_k.append(
+                    grover_power(estimation_problem, k),
+                    list(q[: estimation_problem.grover_operator.num_qubits]),
+                )
+            if measurement:
+                qc_k.barrier()
+                qc_k.measure(estimation_problem.objective_qubits, c[:])
+            circuits.append(qc_k)
+        return circuits
+
+
 def qpe_circuit(estimation_problem, num_eval_qubits: int, measurement: bool) -> QuantumCircuit:
     """The canonical-QAE circuit of ``AmplitudeEstimation.construct_circuit`` (same registers,
     H layer, controlled Q^(2^j) on evaluation qubit j, ``QFT(m, inverse, no swaps)`` with
@@ -56,8 +127,7 @@ def qpe_circuit(estimation_problem, num_eval_qubits: int, measurement: bool) -> 
     circuit.compose(a_op, list(state_reg), inplace=True)
     circuit.h(eval_reg)
     for j in range(num_eval_qubits):
-        power = grover.power(2**j).to_gate(label=f"Q^{2**j}")
-        circuit.append(power.control(1, annotated=True), [eval_reg[j], *state_reg])
+        circuit.append(grover_power(estimation_problem, 2**j, 1), [eval_reg[j], *state_reg])
     iqft = QFT(num_eval_qubits, inverse=True, do_swaps=False).reverse_bits()
     circuit.compose(iqft, list(eval_reg), inplace=True)
     if measurement:
@@ -104,7 +174,7 @@ def run_iqae(
     problem: PricingProblem, epsilon_target: float, sampler, alpha: float = 0.05
 ) -> EstimateResult:
     """Iterative QAE; ``epsilon_target`` is the target half-width on the amplitude."""
-    result = IterativeAmplitudeEstimation(epsilon_target, alpha, sampler=sampler).estimate(
+    result = LazyIterativeAmplitudeEstimation(epsilon_target, alpha, sampler=sampler).estimate(
         problem.estimation_problem()
     )
     powers = [int(k) for k in result.powers[1:]]  # powers[0] = 0 is a placeholder, not run
@@ -125,7 +195,7 @@ def run_iqae(
 def run_mlae(problem: PricingProblem, max_power_exponent: int, sampler) -> EstimateResult:
     """MLAE with schedule {0, 1, 2, 4, …, 2^M}, M = ``max_power_exponent``."""
     schedule = [0] + [2**j for j in range(max_power_exponent + 1)]
-    result = MaximumLikelihoodAmplitudeEstimation(schedule, sampler=sampler).estimate(
+    result = LazyMaximumLikelihoodAmplitudeEstimation(schedule, sampler=sampler).estimate(
         problem.estimation_problem()
     )
     shots = sampler.default_shots

@@ -36,7 +36,11 @@ def circuit_key(circuit: QuantumCircuit) -> tuple:
     items = []
     for inst in circuit.data:
         params = []
-        for p in inst.operation.params:
+        if isinstance(inst.operation, AnnotatedOperation):
+            # Annotated operations carry no params: the modifiers (power, control) are the key.
+            params.append(repr(inst.operation.modifiers))
+            params.append(inst.operation.base_op.name)
+        for p in getattr(inst.operation, "params", []):
             if isinstance(p, np.ndarray):
                 params.append(tuple(np.round(p.ravel(), 12).tolist()))
             elif isinstance(p, complex | float | int):
@@ -74,16 +78,17 @@ def _strip_measurements(circuit: QuantumCircuit) -> QuantumCircuit:
 _SKIP = {"measure", "barrier", "delay"}
 
 
-def _operation_key(op: Instruction, cache: dict | None = None) -> tuple:
-    """Structural key of an operation; memoized per object (the same Q gate object appears
-    2^j times inside a Grover power)."""
-    if cache is not None:
-        hit = cache.get(("opkey", id(op)))
+def _operation_key(op: Instruction, memo: dict | None = None) -> tuple:
+    """Structural key of an operation. ``memo`` (keyed by object id) lives for one circuit
+    evaluation only: the same Q gate object appears 2^j times inside a Grover power, but a
+    long-lived id cache would keep every circuit's gate objects alive."""
+    if memo is not None:
+        hit = memo.get(id(op))
         if hit is not None and hit[0] is op:
             return hit[1]
-    key = _compute_operation_key(op, cache)
-    if cache is not None:
-        cache[("opkey", id(op))] = (op, key)
+    key = _compute_operation_key(op, memo)
+    if memo is not None:
+        memo[id(op)] = (op, key)
     return key
 
 
@@ -129,13 +134,15 @@ def _controlled(base: np.ndarray, num_ctrl: int, ctrl_state: int) -> np.ndarray:
     return matrix
 
 
-def operation_matrix(op: Instruction, cache: dict) -> np.ndarray:
-    """Exact unitary of ``op``, built from its definition and memoized in ``cache``."""
-    key = ("matrix", _operation_key(op, cache))
+def operation_matrix(op: Instruction, cache: dict, memo: dict | None = None) -> np.ndarray:
+    """Exact unitary of ``op``, built from its definition and memoized in ``cache`` (by
+    structure, so repeated or re-created identical gates share one entry)."""
+    memo = {} if memo is None else memo
+    key = ("matrix", _operation_key(op, memo))
     if key in cache:
         return cache[key]
     if isinstance(op, AnnotatedOperation):
-        matrix = operation_matrix(op.base_op, cache)
+        matrix = operation_matrix(op.base_op, cache, memo)
         for modifier in op.modifiers:
             if isinstance(modifier, ControlModifier):
                 matrix = _controlled(matrix, modifier.num_ctrl_qubits, modifier.ctrl_state)
@@ -148,10 +155,10 @@ def operation_matrix(op: Instruction, cache: dict) -> np.ndarray:
     elif getattr(op, "_standard_gate", None) is not None:
         matrix = op.to_matrix()
     elif isinstance(op, ControlledGate) and op.base_gate is not None:
-        base = operation_matrix(op.base_gate, cache)
+        base = operation_matrix(op.base_gate, cache, memo)
         matrix = _controlled(base, op.num_ctrl_qubits, op.ctrl_state)
     elif op.definition is not None:
-        matrix = circuit_matrix(op.definition, cache)
+        matrix = circuit_matrix(op.definition, cache, memo)
     else:  # e.g. high-level objects synthesized only by the transpiler
         wrapper = QuantumCircuit(op.num_qubits)
         wrapper.append(op, range(op.num_qubits))
@@ -160,13 +167,14 @@ def operation_matrix(op: Instruction, cache: dict) -> np.ndarray:
     return cache[key]
 
 
-def circuit_matrix(circuit: QuantumCircuit, cache: dict) -> np.ndarray:
+def circuit_matrix(circuit: QuantumCircuit, cache: dict, memo: dict | None = None) -> np.ndarray:
     unitary = Operator(np.eye(2**circuit.num_qubits, dtype=complex))
     for inst in circuit.data:
         if inst.operation.name in _SKIP:
             continue
         qargs = [circuit.find_bit(q).index for q in inst.qubits]
-        unitary = unitary.compose(Operator(operation_matrix(inst.operation, cache)), qargs=qargs)
+        matrix = operation_matrix(inst.operation, cache, memo)
+        unitary = unitary.compose(Operator(matrix), qargs=qargs)
     if circuit.global_phase:
         unitary = unitary * np.exp(1j * float(circuit.global_phase))
     return unitary.data
@@ -175,11 +183,13 @@ def circuit_matrix(circuit: QuantumCircuit, cache: dict) -> np.ndarray:
 def exact_statevector(circuit: QuantumCircuit, cache: dict) -> Statevector:
     """Final state of ``circuit`` (measurements ignored) from |0...0>."""
     state = Statevector.from_int(0, 2**circuit.num_qubits)
+    memo: dict = {}
     for inst in circuit.data:
         if inst.operation.name in _SKIP:
             continue
         qargs = [circuit.find_bit(q).index for q in inst.qubits]
-        state = state.evolve(Operator(operation_matrix(inst.operation, cache)), qargs=qargs)
+        matrix = operation_matrix(inst.operation, cache, memo)
+        state = state.evolve(Operator(matrix), qargs=qargs)
     return state
 
 
@@ -219,9 +229,6 @@ class ExactDistributionSampler(BaseSamplerV2):
 
     def _exact_probabilities(self, circuit: QuantumCircuit) -> np.ndarray:
         """P(clbit string) as a vector indexed by the integer value of all clbits."""
-        hit = self._cache.get(("circuit-id", id(circuit)))
-        if hit is not None and hit[0] is circuit:
-            return hit[1]
         key = ("exact", circuit_key(circuit))
         if key not in self._cache:
             measured = _measured(circuit)
@@ -233,7 +240,6 @@ class ExactDistributionSampler(BaseSamplerV2):
             for idx, p in enumerate(probs_measured):
                 full[sum(((idx >> b) & 1) << c for b, c in enumerate(positions))] += p
             self._cache[key] = full / full.sum()
-        self._cache[("circuit-id", id(circuit))] = (circuit, self._cache[key])
         return self._cache[key]
 
     def _noisy_counts(self, circuit: QuantumCircuit, shots: int) -> dict[int, int]:
