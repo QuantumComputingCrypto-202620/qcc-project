@@ -7,6 +7,7 @@ histories, gitignored), ``results/summary/<name>*.csv`` (committed) and
 
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
 import multiprocessing as mp
@@ -21,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from qcc_common.metrics import circuit_metrics
-from qcc_common.results import ExperimentRecord
+from qcc_common.results import ExperimentRecord, to_jsonable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = PROJECT_ROOT / "results"
@@ -91,19 +92,49 @@ def load_summary(config: dict, name: str) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def _parallel_map(fn: Callable, jobs: list, workers: int) -> list:
+def _job_key(job: dict) -> str:
+    blob = json.dumps(to_jsonable(job), sort_keys=True)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
+def _checkpointed(args: tuple[Callable, dict]):
+    """Run ``fn(job)`` unless its result is already in ``job["_checkpoint"]``."""
+    fn, job = args
+    path = Path(job["_checkpoint"])
+    if path.is_file():
+        return json.loads(path.read_text())
+    result = to_jsonable(fn(job))
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(result))
+    tmp.replace(path)
+    return result
+
+
+def _parallel_map(
+    fn: Callable, jobs: list, workers: int, checkpoint_dir: Path | None = None
+) -> list:
+    """Map ``fn`` over ``jobs`` in worker processes. With ``checkpoint_dir``, every finished
+    job is saved there and skipped on a rerun, so an interrupted experiment resumes."""
+    if checkpoint_dir is not None:
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        jobs = [
+            {**job, "_checkpoint": str(checkpoint_dir / f"{_job_key(job)}.json")} for job in jobs
+        ]
+    args = [(fn, job) if checkpoint_dir is not None else job for job in jobs]
+    call = _checkpointed if checkpoint_dir is not None else fn
     if workers <= 1 or len(jobs) <= 1:
-        return [fn(job) for job in jobs]
+        return [call(a) for a in args]
     ctx = mp.get_context("spawn")
     with ProcessPoolExecutor(max_workers=min(workers, len(jobs)), mp_context=ctx) as pool:
-        return list(pool.map(fn, jobs))
+        return list(pool.map(call, args))
 
 
 def _strip(row: dict) -> dict:
-    return {k: v for k, v in row.items() if k not in ("parameters", "history")}
+    return {k: v for k, v in row.items() if k not in ("parameters", "history", "_checkpoint")}
 
 
-# ----------------------------------------------------------------------- curve (E1, E2, E3)
+def _parts_dir(config: dict) -> Path:
+    return Path(config["results_dir"]) / "raw" / f"{config['name']}.parts"
 
 
 def _curve_job(job: dict) -> list[dict]:
@@ -127,7 +158,20 @@ def _curve_job(job: dict) -> list[dict]:
     ansatz = metrics = None
     params_at: dict[float, list[float]] = {}
     rows = []
+    # Per-point resume: finished points are appended to a JSON-lines file next to the checkpoint.
+    points_file = (
+        Path(job["_checkpoint"]).with_suffix(".points.jsonl") if "_checkpoint" in job else None
+    )
+    done = {}
+    if points_file is not None and points_file.is_file():
+        for line in points_file.read_text().splitlines():
+            row = json.loads(line)
+            done[row["bond_length"]] = row
     for r, prev in order:
+        if r in done:
+            rows.append(done[r])
+            params_at[r] = done[r]["parameters"]
+            continue
         ham = build_hamiltonian(job["molecule"], r, job["basis"], space, job["mapper"])
         if ansatz is None:
             circuit = build_ansatz(spec, ham)
@@ -192,6 +236,9 @@ def _curve_job(job: dict) -> list[dict]:
             "history": record.history,
         }
         rows.append(row)
+        if points_file is not None:
+            with points_file.open("a") as f:
+                f.write(json.dumps(to_jsonable(row)) + "\n")
         log(
             f"[{job['molecule']} {space.label} {spec.label}] R={r:.3f} "
             f"dE={record.delta_e:.2e} Ha nfev={record.nfev} {record.wall_time:.1f}s"
@@ -223,7 +270,7 @@ def run_curve(config: dict) -> pd.DataFrame:
     jobs.sort(key=lambda j: -(j["active_space"].get("num_spatial_orbitals") or 99))
     rows = [
         row
-        for result in _parallel_map(_curve_job, jobs, config.get("workers", 1))
+        for result in _parallel_map(_curve_job, jobs, config.get("workers", 1), _parts_dir(config))
         for row in result
     ]
     summary = pd.DataFrame([_strip(r) for r in rows]).drop(columns=["restart_energies"])
@@ -547,7 +594,7 @@ def run_optimizers(config: dict) -> pd.DataFrame:
                     }
                 )
     jobs.sort(key=lambda j: (j["ansatz"]["type"] != "hea", j["optimizer"] != "l_bfgs_b"))
-    rows = _parallel_map(_single_vqe_job, jobs, config.get("workers", 1))
+    rows = _parallel_map(_single_vqe_job, jobs, config.get("workers", 1), _parts_dir(config))
     runs = pd.DataFrame([_strip(r) for r in rows])
     runs["abs_delta_e"] = runs.delta_e.abs()
     stats = (
@@ -676,7 +723,7 @@ def run_shots(config: dict) -> pd.DataFrame:
         for i in range(config["repetitions"])
     ]
     jobs.sort(key=lambda j: -j["shots"])
-    rows = _parallel_map(_single_vqe_job, jobs, config.get("workers", 1))
+    rows = _parallel_map(_single_vqe_job, jobs, config.get("workers", 1), _parts_dir(config))
     runs = pd.DataFrame([_strip(r) for r in rows])
     runs["abs_delta_e"] = runs.delta_e.abs()
     stats = (
@@ -838,7 +885,7 @@ def run_noise(config: dict) -> pd.DataFrame:
                     "scale_factors": list(config.get("scale_factors", [1, 3, 5])),
                 }
             )
-    rows = _parallel_map(_noise_job, jobs, config.get("workers", 1))
+    rows = _parallel_map(_noise_job, jobs, config.get("workers", 1), _parts_dir(config))
     table = pd.DataFrame(
         [{k: v for k, v in r.items() if not k.endswith("_by_scale")} for r in rows]
     )

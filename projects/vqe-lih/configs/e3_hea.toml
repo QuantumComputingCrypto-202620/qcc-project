@@ -7,7 +7,7 @@ basis = "sto3g"
 mapper = "jordan_wigner"
 curve = "curve.toml"
 seed = 300
-workers = 3
+workers = 4
 
 [optimizer]
 name = "l_bfgs_b"

@@ -37,3 +37,15 @@ def test_readout_inversion_recovers_ideal_value():
     mitigated, _ = group_expectation(counts, group, [np.linalg.inv(confusion)])
     assert raw == pytest.approx(0.8)
     assert mitigated == pytest.approx(1.0)
+
+
+def test_exact_sampling_matches_aer_backend_path(h2):
+    from qiskit_aer import AerSimulator
+
+    ansatz = compile_for_simulation(build_uccsd(h2))
+    params = np.array([0.0, 0.0, -0.11])
+    (exact,) = exact_expectations(ansatz, [h2.qubit_op], params)
+    for backend in (None, AerSimulator()):
+        est = ShotEstimator(shots=20_000, seed=2, backend=backend)
+        res = est.run([(ansatz, h2.qubit_op, params)]).result()[0]
+        assert abs(res.data.evs - exact) < 5 * res.data.stds

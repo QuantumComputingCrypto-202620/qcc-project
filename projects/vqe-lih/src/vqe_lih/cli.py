@@ -16,6 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--results-dir", type=Path, default=None, help="override results/ (raw, summary, figures)"
     )
+    parser.add_argument("--workers", type=int, default=None, help="override worker processes")
     return parser
 
 
@@ -36,6 +37,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     config["experiment"] = args.experiment
     config.setdefault("name", args.config.stem)
+    if args.workers is not None:
+        config["workers"] = args.workers
     if args.results_dir is not None:
         config["results_dir"] = str(args.results_dir)
     RUNNERS[args.experiment](config)

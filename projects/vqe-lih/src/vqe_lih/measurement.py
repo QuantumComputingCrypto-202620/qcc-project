@@ -14,7 +14,7 @@ from qiskit import QuantumCircuit
 from qiskit.primitives import BaseEstimatorV2, PrimitiveJob, PrimitiveResult
 from qiskit.primitives.containers import DataBin, EstimatorPubLike, PubResult
 from qiskit.primitives.containers.estimator_pub import EstimatorPub
-from qiskit.quantum_info import SparsePauliOp
+from qiskit.quantum_info import SparsePauliOp, Statevector
 from qiskit_aer import AerSimulator
 
 
@@ -88,11 +88,18 @@ def group_expectation(
     return mean, variance
 
 
+def _counts_dict(outcome_counts: np.ndarray, num_qubits: int) -> dict[str, int]:
+    return {format(int(i), f"0{num_qubits}b"): int(c) for i, c in enumerate(outcome_counts) if c}
+
+
 class ShotEstimator(BaseEstimatorV2):
     """Estimator V2 that samples ``shots`` shots per measurement group per evaluation.
 
-    Each ``run`` draws fresh simulator seeds from a generator seeded with ``seed``, so runs are
-    reproducible but evaluations have independent shot noise.
+    Without a ``backend`` (noiseless), the state is simulated once per evaluation and each
+    group's outcomes are drawn from the exact measurement distribution in its rotated basis
+    (``rng.multinomial``) — statistically identical to running the measured circuits, but the
+    cost does not grow with ``shots``. With a ``backend``, the measured circuits are run on it.
+    Runs are reproducible for a fixed ``seed``; evaluations have independent shot noise.
     """
 
     def __init__(self, shots: int, seed: int | None = None, backend: AerSimulator | None = None):
@@ -100,8 +107,9 @@ class ShotEstimator(BaseEstimatorV2):
             raise ValueError("shots must be positive")
         self.shots = int(shots)
         self._rng = np.random.default_rng(seed)
-        self._backend = backend or AerSimulator(method="statevector")
+        self._backend = backend
         self._cache: dict[tuple[int, tuple], tuple[list[SparsePauliOp], list[QuantumCircuit]]] = {}
+        self._rotations: dict[tuple[int, tuple], list[QuantumCircuit]] = {}
         self.total_shots = 0
 
     def run(
@@ -121,7 +129,22 @@ class ShotEstimator(BaseEstimatorV2):
             op = SparsePauliOp.from_list(list(obs.items()), num_qubits=circuit.num_qubits)
             groups = qwc_groups(op.simplify())
             self._cache[key] = (groups, [measurement_circuit(circuit, g) for g in groups])
+            self._rotations[key] = [basis_rotation(g) for g in groups]
         return self._cache[key]
+
+    def _sample_exact(self, circuit, obs, binds) -> tuple[float, float]:
+        groups, _ = self._groups(circuit, obs)
+        rotations = self._rotations[(id(circuit), tuple(sorted(obs.items())))]
+        bound = circuit.assign_parameters(binds) if circuit.num_parameters else circuit
+        state = Statevector(bound)
+        mean = var = 0.0
+        for group, rotation in zip(groups, rotations, strict=True):
+            probs = state.evolve(rotation).probabilities()
+            outcome_counts = self._rng.multinomial(self.shots, probs / probs.sum())
+            m, v = group_expectation(_counts_dict(outcome_counts, circuit.num_qubits), group)
+            mean, var = mean + m, var + v
+        self.total_shots += self.shots * len(groups)
+        return mean, var
 
     def _run_pub(self, pub: EstimatorPub) -> PubResult:
         circuit = pub.circuit
@@ -134,8 +157,12 @@ class ShotEstimator(BaseEstimatorV2):
         evs = np.zeros(bc_index.shape)
         stds = np.zeros(bc_index.shape)
         for idx in np.ndindex(*bc_index.shape):
-            groups, circuits = self._groups(circuit, bc_obs[idx])
             binds = values[bc_index[idx]]
+            if self._backend is None:
+                mean, var = self._sample_exact(circuit, bc_obs[idx], binds)
+                evs[idx], stds[idx] = mean, np.sqrt(var)
+                continue
+            groups, circuits = self._groups(circuit, bc_obs[idx])
             bound = (
                 [c.assign_parameters(binds) for c in circuits]
                 if circuit.num_parameters

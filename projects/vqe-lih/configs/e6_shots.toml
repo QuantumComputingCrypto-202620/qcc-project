@@ -9,7 +9,7 @@ optimizers = ["spsa", "cobyla"]
 repetitions = 5
 init = "zeros"
 seed = 600
-workers = 2
+workers = 4
 
 [active_space]
 label = "2e3o"
