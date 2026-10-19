@@ -1,0 +1,34 @@
+# E2: error vs oracle queries for the bimodal distribution + digital payoff (no payoff-
+# approximation error on the grid). R = 50 seeded repetitions per setting, 100 shots per circuit.
+experiment = "e2"
+n = 5
+shots = 100
+repetitions = 50
+chunk = 10
+seed = 200
+epsilon = 1e-3
+workers = 4
+
+[sweeps]
+qae = [1, 2, 3, 4, 5, 6, 7, 8]                     # evaluation qubits m
+iqae = [1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4]   # epsilon_target (alpha = 0.05)
+mlae = [0, 1, 2, 3, 4, 5, 6, 7]                     # schedule {0, 1, 2, ..., 2^M}
+mc = [100, 316, 1000, 3162, 10000, 31623, 100000, 316228, 1000000, 3162278, 10000000]
+qmc = [128, 512, 2048, 8192, 32768, 131072, 524288] # Sobol, powers of two
+
+# Binary event before expiry (e.g. a regulatory decision): 40 % "bad news" mode around 85,
+# 60 % "good news" mode around 115; log-price widths 0.10.
+[model]
+distribution = "bimodal"
+w = 0.4
+center1 = 85.0
+sigma1 = 0.10
+center2 = 115.0
+sigma2 = 0.10
+r = 0.03
+maturity = 0.5
+
+[payoff]
+type = "digital"
+strike = 100.0
+payout = 1.0
