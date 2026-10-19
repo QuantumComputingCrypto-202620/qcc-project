@@ -25,6 +25,12 @@ diagonalization. The target is **chemical accuracy**: an error below 1.6 mHa, wh
 The second half of the claim is a **hypothesis**. If the data contradicts it, the claim is
 restated to match the data.
 
+**Result** (filled in from data; see [REPORT.md](REPORT.md) §1): in the default (2e, 3o) space,
+X = 20 of Y = 20 at depth Z = 953; X′ = 16 (HEA reps 3) at depth Z′ = 45. In (4e, 4o):
+20/20 at depth 5177 vs 16 at depth 61. X and X′ count points that are chemically accurate
+**and** in the correct symmetry sector (|⟨N⟩ − N| and ⟨S²⟩ below 0.01). The hypothesis is
+confirmed: the best HEA is accurate at every point up to 2.0 Å and at 20 % of points from 2.5 Å.
+
 Non-goals:
 - No new ansatz design.
 - No optimization on real hardware. Hardware is used only to evaluate energies at points
@@ -59,6 +65,12 @@ to be very close to exact. In that setting the UCCSD side of the claim is almost
 satisfied, and the comparison is driven by the HEA. Week 4 decides whether the main study also
 includes a 4-electron active space (for example (4e, 6o) without freezing the core) so that
 UCCSD faces a non-trivial test. The decision is recorded in this spec.
+
+**Week-4 decision (recorded).** The main study uses two active spaces: the default (2e, 3o) and
+a 4-electron **(4e, 4o)** space with no frozen core and only the four σ orbitals (8 qubits, 26
+UCCSD parameters). (4e, 6o) was measured at about 0.5 s per energy evaluation with 92 UCCSD
+parameters, roughly 7 hours for the curve, and was dropped. σ orbitals are selected by symmetry:
+orbitals with no p_x/p_y weight, taking the highest occupied and lowest virtual ones.
 
 **Bond lengths.** About 20 points from 0.8 Å to 4.0 Å, sampled more densely around the
 equilibrium bond length (about 1.6 Å). The exact list goes in `configs/curve.toml`.
@@ -102,6 +114,16 @@ energy shift, in Hartree.
 - Optimizers:
   - `COBYLA`, `L_BFGS_B` (or `SLSQP`) and `SPSA` from `qiskit_algorithms.optimizers`.
   - Default `maxiter` is 1000 for gradient-free optimizers and 300 for SPSA.
+  - E2/E3 use L-BFGS-B. E5/E6 add `spsa_small`: SPSA with the standard calibration but a
+    0.05 rad target step instead of 2π/10, because the default steps are an order of magnitude
+    larger than UCCSD amplitudes (see REPORT §5).
+- HEA initial point: with all angles zero the HEA is *not* the HF state, since the CX layers
+  permute the HF bitstring. E3 therefore starts the equilibrium point from the best of 5
+  random N(0, 0.1²) points, then warm-starts.
+- Shot-based estimation (E6) uses `measurement.ShotEstimator`, which samples every
+  qubit-wise-commuting Pauli group with `shots` shots per evaluation. Aer's `EstimatorV2` with
+  `precision > 0` only adds the same Gaussian draw to the exact value on every call, so it does
+  not model shot noise.
 - Initialization strategies, compared in E5:
   1. **zeros**: equals HF for UCCSD.
   2. **random**: N(0, 0.1²), with K = 10 seeds.
@@ -128,10 +150,13 @@ projects/vqe-lih/
 │   ├── ansatze.py        # build_uccsd(), build_hea(reps), with HF initial state
 │   ├── solver.py         # run_vqe(): optimizer + init strategy -> VQERecord
 │   ├── reference.py      # exact_energy(), fci_energy(), hf_energy()
-│   ├── mitigation.py     # (optional) readout mitigation / ZNE wrappers for E7
+│   ├── measurement.py    # ShotEstimator: shot-based EstimatorV2 over QWC Pauli groups
+│   ├── mitigation.py     # readout-confusion inversion and two-qubit-gate-folding ZNE (E7)
 │   ├── experiments.py    # E1-E7 runners driven by config
 │   └── cli.py            # `vqe-lih <experiment> --config ...`
-├── configs/              # e1_h2.toml, curve.toml, e2_uccsd.toml, e3_hea.toml, e5_optimizers.toml, e6_shots.toml, e7_hardware.toml
+├── configs/              # e1_h2.toml, curve.toml, e2_uccsd.toml, e3_hea.toml, e4_tradeoff.toml, e5_optimizers.toml, e6_shots.toml, e7_noise.toml, beh2.toml
+├── run_all.sh            # regenerates every result in order (resumable)
+├── REPORT.md             # final report
 ├── notebooks/
 ├── tests/
 └── results/{raw,summary,figures}/
@@ -167,7 +192,7 @@ Required fast tests:
 | **E4** | What is the trade-off between depth and accuracy? | E2 + E3 results combined | Error vs depth and error vs distance plots with a 1.6 mHa line; parameter count table |
 | **E5** | How do optimizers and initialization behave? | COBYLA vs L-BFGS-B vs SPSA × {zeros, random ×10, warm start}, at 3 representative points (equilibrium, ~2.5 Å, ~3.5 Å) | Iterations to convergence; spread of final ΔE across seeds; any local minima or plateaus documented |
 | **E6** | How does shot noise affect the result? | Shot-based Estimator with shots ∈ {10², 10³, 10⁴, 10⁵}; SPSA vs COBYLA | ΔE vs shots; shots needed to reach chemical accuracy |
-| E7 (optional) | How far is real hardware from the simulator, and how much does mitigation help? | 2–3 points; energies evaluated at simulator-optimized parameters on IBM hardware; raw vs readout mitigation vs ZNE | Table: simulator, noisy simulator, hardware raw, hardware mitigated |
+| E7 (optional) | How far is real hardware from the simulator, and how much does mitigation help? | 2–3 points; energies evaluated at simulator-optimized parameters on IBM hardware; raw vs readout mitigation vs ZNE. **Run as a substitute on the FakeSherbrooke noisy simulator** (no hardware access); hardware columns not filled | Table: simulator, noisy simulator, hardware raw, hardware mitigated |
 | Stretch | Is BeH₂ feasible? | BeH₂ with a reduced active space; UCCSD vs HEA at a few points | Same metrics as E2–E4 where affordable |
 
 ## 9. Milestones
@@ -184,15 +209,15 @@ Required fast tests:
 | 8 | Final figures (curve, error vs depth, error vs distance), report, conclusions | All figures in `results/figures/`; claim stated with numbers; README updated |
 
 Checklist:
-- [ ] E1 H₂ validation
-- [ ] E2 UCCSD curve
-- [ ] E3 HEA curve
-- [ ] E4 depth vs accuracy
-- [ ] E5 optimizers and initialization
-- [ ] E6 shot noise
-- [ ] E7 hardware (optional)
-- [ ] BeH₂ (stretch)
-- [ ] Report
+- [x] E1 H₂ validation
+- [x] E2 UCCSD curve
+- [x] E3 HEA curve
+- [x] E4 depth vs accuracy
+- [x] E5 optimizers and initialization
+- [x] E6 shot noise
+- [x] E7 hardware (optional): noisy-simulator substitute only, no real hardware
+- [x] BeH₂ (stretch): (4e, 4o) σ space, 5 geometries
+- [x] Report
 
 ## 10. Acceptance criteria
 

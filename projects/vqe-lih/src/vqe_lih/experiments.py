@@ -291,13 +291,22 @@ def _plt():
     return plt
 
 
-def _chem_acc_line(ax, label: bool = True) -> None:
+def _chem_acc_line(ax, label: bool | str = True) -> None:
+    """Dashed 1.6 mHa line. ``label=True`` annotates it at the right edge; ``"legend"`` adds
+    it to the legend instead (for crowded plots); ``False`` draws it unlabeled."""
     from qcc_common.plotting import MUTED, REFERENCE
 
-    ax.axhline(CHEM_ACC_MHA * 1e-3, color=REFERENCE, linestyle="--", linewidth=1.0)
-    if label:
+    text = "chemical accuracy (1.6 mHa)"
+    ax.axhline(
+        CHEM_ACC_MHA * 1e-3,
+        color=REFERENCE,
+        linestyle="--",
+        linewidth=1.0,
+        label=text if label == "legend" else None,
+    )
+    if label is True:
         ax.annotate(
-            "chemical accuracy (1.6 mHa)",
+            text,
             xy=(1.0, CHEM_ACC_MHA * 1e-3),
             xycoords=("axes fraction", "data"),
             xytext=(-2, 3),
@@ -363,6 +372,9 @@ def run_tradeoff(config: dict) -> pd.DataFrame:
 
     df = pd.concat([load_summary(config, name) for name in config["inputs"]], ignore_index=True)
     df["abs_delta_e"] = df.delta_e.abs()
+    # Strict criterion: chemically accurate AND in the correct symmetry sector (N, S² = 0).
+    # Near dissociation a spin-contaminated state can lie within 1.6 mHa of the singlet.
+    df["accurate_in_sector"] = df.chemical_accuracy.astype(bool) & ~df.wrong_sector.astype(bool)
     near_r = float(config.get("near_dissociation_min_r", 2.5))
     eq_r = float(config.get("equilibrium_max_r", 2.0))
 
@@ -375,7 +387,8 @@ def run_tradeoff(config: dict) -> pd.DataFrame:
             depth=("depth", "first"),
             two_qubit_gates=("two_qubit_gates", "first"),
             points=("bond_length", "size"),
-            points_chemical_accuracy=("chemical_accuracy", "sum"),
+            points_chemical_accuracy=("accurate_in_sector", "sum"),
+            points_chemical_accuracy_any_sector=("chemical_accuracy", "sum"),
             median_delta_e=("abs_delta_e", "median"),
             max_delta_e=("abs_delta_e", "max"),
             wrong_sector_points=("wrong_sector", "sum"),
@@ -383,8 +396,10 @@ def run_tradeoff(config: dict) -> pd.DataFrame:
         )
         .reset_index()
     )
-    near = df[df.bond_length >= near_r].groupby(["active_space", "ansatz"]).chemical_accuracy.mean()
-    eq = df[df.bond_length <= eq_r].groupby(["active_space", "ansatz"]).chemical_accuracy.mean()
+    near = (
+        df[df.bond_length >= near_r].groupby(["active_space", "ansatz"]).accurate_in_sector.mean()
+    )
+    eq = df[df.bond_length <= eq_r].groupby(["active_space", "ansatz"]).accurate_in_sector.mean()
     table["fraction_chem_acc_r_le_eq"] = [
         eq.get((s, a)) for s, a in zip(table.active_space, table.ansatz, strict=True)
     ]
@@ -404,6 +419,8 @@ def run_tradeoff(config: dict) -> pd.DataFrame:
             "Y": int(u.points),
             "Z": int(u.depth),
             "X_prime": int(h.points_chemical_accuracy),
+            "X_prime_any_sector": int(h.points_chemical_accuracy_any_sector),
+            "X_any_sector": int(u.points_chemical_accuracy_any_sector),
             "Z_prime": int(h.depth),
             "hea_best": h.ansatz,
             "hea_fraction_near_dissociation": float(h.fraction_chem_acc_r_ge_near),
@@ -413,7 +430,12 @@ def run_tradeoff(config: dict) -> pd.DataFrame:
             ),
             "near_dissociation_min_r": near_r,
             "per_hea_reps": {
-                row.ansatz: {"X_prime": int(row.points_chemical_accuracy), "depth": int(row.depth)}
+                row.ansatz: {
+                    "X_prime": int(row.points_chemical_accuracy),
+                    "X_prime_any_sector": int(row.points_chemical_accuracy_any_sector),
+                    "wrong_sector_points": int(row.wrong_sector_points),
+                    "depth": int(row.depth),
+                }
                 for row in hea.itertuples()
             },
         }
@@ -648,10 +670,10 @@ def plot_optimizers(config: dict, runs: pd.DataFrame, rows: list[dict]) -> None:
                     )
             ax.set_xticks(range(len(optimizers)), [o.upper().replace("_", "-") for o in optimizers])
             ax.set_yscale("log")
-            _chem_acc_line(ax, label=r == points[-1])
+            _chem_acc_line(ax, label="legend" if r == points[0] else False)
             ax.set_title(f"R = {r} Å")
         np.atleast_1d(axes)[0].set_ylabel("|ΔE| final (Ha)")
-        fig.legend(loc="upper center", ncol=3, bbox_to_anchor=(0.5, 1.04))
+        fig.legend(loc="upper center", ncol=4, bbox_to_anchor=(0.5, 1.04))
         fig.suptitle(
             f"E5 — {label}: final error by optimizer and initialization "
             f"({config['random_starts']} random seeds)",
@@ -907,14 +929,14 @@ def run_noise(config: dict) -> pd.DataFrame:
                 _abs_floor(t[f"delta_e_{m}"]),
                 width=width * 0.9,
                 color=SERIES_COLORS[k],
-                label=m.replace("_", " "),
+                label=m.replace("_", " ") if label == labels[0] else None,
             )
         ax.set_xticks(x, [f"{r} Å" for r in t.bond_length])
         ax.set_yscale("log")
-        _chem_acc_line(ax, label=label == labels[-1])
+        _chem_acc_line(ax, label="legend" if label == labels[0] else False)
         ax.set_title(f"{label} (device 2q gates: {int(t.device_two_qubit_gates.iloc[0])})")
     np.atleast_1d(axes)[0].set_ylabel("|E − E_exact| (Ha)")
-    np.atleast_1d(axes)[0].legend(loc="upper left", fontsize=7)
+    fig.legend(loc="upper center", ncol=4, bbox_to_anchor=(0.5, 0.0), fontsize=8)
     fig.suptitle(
         f"E7 — {config.get('fake_backend', 'FakeSherbrooke')} noisy simulator, "
         f"{config['shots']} shots/group",
