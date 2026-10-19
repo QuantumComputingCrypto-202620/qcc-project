@@ -1,0 +1,27 @@
+# E5: optimizers x initialization at equilibrium, 2.5 Å and 3.5 Å (LiH 2e3o, exact estimator).
+# warm_start uses the optimum at the neighbouring grid point (toward equilibrium) from E2 / E3.
+experiment = "e5"
+molecule = "LiH"
+basis = "sto3g"
+curve = "curve.toml"
+points = [1.6, 2.5, 3.5]
+optimizers = ["cobyla", "l_bfgs_b", "spsa", "spsa_small"]
+random_starts = 10
+seed = 500
+workers = 4
+
+[active_space]
+label = "2e3o"
+freeze_core = true
+num_electrons = 2
+num_spatial_orbitals = 3
+orbitals = "sigma"
+
+[[ansatze]]
+type = "uccsd"
+source = "e2_uccsd"
+
+[[ansatze]]
+type = "hea"
+reps = 2
+source = "e3_hea"

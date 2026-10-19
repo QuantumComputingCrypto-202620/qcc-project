@@ -1,0 +1,29 @@
+# E7 (optional), simulator substitute: no IBM Quantum token is available here, so energies at the
+# simulator-optimized parameters are evaluated on a FakeSherbrooke noisy simulator instead of
+# hardware: raw vs readout mitigation vs ZNE (two-qubit-gate folding at 1, 3, 5).
+experiment = "e7"
+molecule = "LiH"
+basis = "sto3g"
+points = [1.6, 2.5, 3.5]
+fake_backend = "FakeSherbrooke"
+noise_scale = 1.0
+shots = 10000
+scale_factors = [1, 3, 5]
+seed = 700
+workers = 3
+
+[active_space]
+label = "2e3o"
+freeze_core = true
+num_electrons = 2
+num_spatial_orbitals = 3
+orbitals = "sigma"
+
+[[ansatze]]
+type = "uccsd"
+source = "e2_uccsd"
+
+[[ansatze]]
+type = "hea"
+reps = 1
+source = "e3_hea"

@@ -1,0 +1,82 @@
+{
+ "4e4o": {
+  "X": 20,
+  "Y": 20,
+  "Z": 5177,
+  "X_prime": 16,
+  "X_prime_any_sector": 20,
+  "X_any_sector": 20,
+  "Z_prime": 61,
+  "hea_best": "hea_r4",
+  "hea_fraction_near_dissociation": 0.2,
+  "hea_fraction_up_to_eq": 1.0,
+  "hea_fails_near_dissociation": true,
+  "near_dissociation_min_r": 2.5,
+  "per_hea_reps": {
+   "hea_r4": {
+    "X_prime": 16,
+    "X_prime_any_sector": 20,
+    "wrong_sector_points": 4,
+    "depth": 61
+   },
+   "hea_r3": {
+    "X_prime": 1,
+    "X_prime_any_sector": 5,
+    "wrong_sector_points": 4,
+    "depth": 50
+   },
+   "hea_r1": {
+    "X_prime": 0,
+    "X_prime_any_sector": 0,
+    "wrong_sector_points": 0,
+    "depth": 28
+   },
+   "hea_r2": {
+    "X_prime": 0,
+    "X_prime_any_sector": 0,
+    "wrong_sector_points": 5,
+    "depth": 39
+   }
+  }
+ },
+ "2e3o": {
+  "X": 20,
+  "Y": 20,
+  "Z": 953,
+  "X_prime": 16,
+  "X_prime_any_sector": 19,
+  "X_any_sector": 20,
+  "Z_prime": 45,
+  "hea_best": "hea_r3",
+  "hea_fraction_near_dissociation": 0.2,
+  "hea_fraction_up_to_eq": 1.0,
+  "hea_fails_near_dissociation": true,
+  "near_dissociation_min_r": 2.5,
+  "per_hea_reps": {
+   "hea_r3": {
+    "X_prime": 16,
+    "X_prime_any_sector": 19,
+    "wrong_sector_points": 3,
+    "depth": 45
+   },
+   "hea_r4": {
+    "X_prime": 11,
+    "X_prime_any_sector": 16,
+    "wrong_sector_points": 5,
+    "depth": 56
+   },
+   "hea_r1": {
+    "X_prime": 0,
+    "X_prime_any_sector": 0,
+    "wrong_sector_points": 0,
+    "depth": 23
+   },
+   "hea_r2": {
+    "X_prime": 0,
+    "X_prime_any_sector": 1,
+    "wrong_sector_points": 5,
+    "depth": 34
+   }
+  }
+ }
+}

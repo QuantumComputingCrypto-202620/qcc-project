@@ -1,0 +1,22 @@
+# E6: shot noise. Every evaluation measures each qubit-wise-commuting Pauli group with `shots`
+# shots. UCCSD from HF at equilibrium; ΔE is the exact energy at the final parameters.
+experiment = "e6"
+molecule = "LiH"
+basis = "sto3g"
+point = 1.6
+shots = [100, 1000, 10000, 100000]
+optimizers = ["spsa", "spsa_small", "cobyla"]
+repetitions = 5
+init = "zeros"
+seed = 600
+workers = 4
+
+[active_space]
+label = "2e3o"
+freeze_core = true
+num_electrons = 2
+num_spatial_orbitals = 3
+orbitals = "sigma"
+
+[ansatz]
+type = "uccsd"

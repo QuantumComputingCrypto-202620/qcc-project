@@ -1,0 +1,35 @@
+# Stretch: BeH2 (linear, symmetric stretch), Be 1s frozen, σ orbitals only -> (4e, 4o), 8 qubits.
+experiment = "beh2"
+molecule = "BeH2"
+basis = "sto3g"
+mapper = "jordan_wigner"
+equilibrium = 1.33
+bond_lengths = [1.0, 1.33, 1.8, 2.5, 3.2]
+seed = 800
+workers = 3
+
+[optimizer]
+name = "l_bfgs_b"
+maxiter = 1000
+
+[first_point]
+init = "random"
+restarts = 3
+
+[[active_spaces]]
+label = "4e4o"
+freeze_core = true
+num_electrons = 4
+num_spatial_orbitals = 4
+orbitals = "sigma"
+
+[[ansatze]]
+type = "uccsd"
+
+[[ansatze]]
+type = "hea"
+reps = 2
+
+[[ansatze]]
+type = "hea"
+reps = 4

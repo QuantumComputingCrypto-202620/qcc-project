@@ -1,32 +1,47 @@
 """Command-line entry point: `vqe-lih <experiment> --config <file.toml>`."""
 
 import argparse
+import os
 import sys
-import tomllib
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
-# Experiment ID -> runner(config). Runners are added to experiments.py as each one is built.
-EXPERIMENTS: dict[str, Callable[[dict], None]] = {}
-KNOWN_EXPERIMENTS = ("e1", "e2", "e3", "e4", "e5", "e6", "e7")
+KNOWN_EXPERIMENTS = ("e1", "e2", "e3", "e4", "e5", "e6", "e7", "beh2")
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="vqe-lih", description=__doc__)
     parser.add_argument("experiment", choices=KNOWN_EXPERIMENTS, help="experiment ID from SPEC.md")
     parser.add_argument("--config", type=Path, required=True, help="experiment config (TOML)")
+    parser.add_argument(
+        "--results-dir", type=Path, default=None, help="override results/ (raw, summary, figures)"
+    )
+    parser.add_argument("--workers", type=int, default=None, help="override worker processes")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    with args.config.open("rb") as f:
-        config = tomllib.load(f)
-    runner = EXPERIMENTS.get(args.experiment)
-    if runner is None:
-        print(f"vqe-lih: experiment {args.experiment!r} is not implemented yet", file=sys.stderr)
+    # One BLAS thread per process: experiments parallelize over worker processes instead.
+    for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+        os.environ.setdefault(var, "1")
+    from vqe_lih.experiments import RUNNERS, load_config
+
+    config = load_config(args.config)
+    if config.get("experiment") not in (None, args.experiment):
+        print(
+            f"vqe-lih: {args.config} is a config for {config['experiment']!r}, "
+            f"not {args.experiment!r}",
+            file=sys.stderr,
+        )
         return 2
-    runner(config)
+    config["experiment"] = args.experiment
+    config.setdefault("name", args.config.stem)
+    if args.workers is not None:
+        config["workers"] = args.workers
+    if args.results_dir is not None:
+        config["results_dir"] = str(args.results_dir)
+    RUNNERS[args.experiment](config)
     return 0
 
 

@@ -1,0 +1,50 @@
+# E3: hardware-efficient ansatz (RY+RZ, linear CX, HF bitstring prepended), reps 1-4, along the
+# LiH curve. Zero angles are not HF for this ansatz, so the equilibrium point takes the best of
+# 5 random N(0, 0.1²) starts; later points are warm-started.
+experiment = "e3"
+molecule = "LiH"
+basis = "sto3g"
+mapper = "jordan_wigner"
+curve = "curve.toml"
+seed = 300
+workers = 4
+
+[optimizer]
+name = "l_bfgs_b"
+maxiter = 1000
+
+[first_point]
+init = "random"
+restarts = 5
+
+[[ansatze]]
+type = "hea"
+reps = 1
+
+[[ansatze]]
+type = "hea"
+reps = 2
+
+[[ansatze]]
+type = "hea"
+reps = 3
+
+[[ansatze]]
+type = "hea"
+reps = 4
+
+[[active_spaces]]
+# Default (SPEC §3): Li 1s frozen, σ orbitals only -> (2e, 3o), 6 qubits.
+label = "2e3o"
+freeze_core = true
+num_electrons = 2
+num_spatial_orbitals = 3
+orbitals = "sigma"
+
+[[active_spaces]]
+# Week-4 decision: 4 electrons (Li 1s active), σ orbitals only -> (4e, 4o), 8 qubits.
+label = "4e4o"
+freeze_core = false
+num_electrons = 4
+num_spatial_orbitals = 4
+orbitals = "sigma"

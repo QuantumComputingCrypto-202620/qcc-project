@@ -1,9 +1,10 @@
 [project]
 name = "qcc-common"
 version = "0.1.0"
-description = "Shared simulator backends and circuit metrics for qcc-project."
+description = "Shared backends, circuit metrics, experiment records and plotting for qcc-project."
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "matplotlib",
     "numpy",
     "qiskit",
     "qiskit-aer",

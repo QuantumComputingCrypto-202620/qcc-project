@@ -1,0 +1,8 @@
+{
+ "cobyla": null,
+ "spsa": null,
+ "spsa_small": {
+  "shots_per_group": 1000,
+  "median_total_shots": 18879000.0
+ }
+}

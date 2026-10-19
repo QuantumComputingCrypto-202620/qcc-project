@@ -1,4 +1,6 @@
 import pytest
+from qiskit import QuantumCircuit, transpile
+
 from qcc_common import backends
 from qcc_common.backends import (
     noisy_simulator,
@@ -6,7 +8,6 @@ from qcc_common.backends import (
     shot_simulator,
     statevector_simulator,
 )
-from qiskit import QuantumCircuit, transpile
 
 
 def bell() -> QuantumCircuit:
