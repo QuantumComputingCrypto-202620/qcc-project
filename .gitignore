@@ -17,3 +17,7 @@ build/
 # Raw experiment outputs (summaries and figures are committed)
 projects/*/results/raw/*
 !projects/*/results/raw/.gitkeep
+
+# IDE
+.idea/
+.vscode/
