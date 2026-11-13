@@ -51,3 +51,10 @@ known-first-party = ["qcc_common", "qae_options"]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
 markers = ["slow: long-running simulation tests (deselect with -m 'not slow')"]
+# qiskit-algorithms 0.4 still calls Qiskit APIs deprecated in 2.1 (GroverOperator,
+# PhaseEstimation, QFT, MCX modes). Hide those upstream warnings; warnings raised from
+# this project's own code (attributed to qae_options / qcc_common) still show.
+filterwarnings = [
+    "ignore::DeprecationWarning:qiskit_algorithms.*",
+    "ignore::DeprecationWarning:qiskit.*",
+]

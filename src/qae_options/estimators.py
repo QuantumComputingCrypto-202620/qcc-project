@@ -117,7 +117,7 @@ def qpe_circuit(estimation_problem, num_eval_qubits: int, measurement: bool) -> 
     H layer, controlled Q^(2^j) on evaluation qubit j, ``QFT(m, inverse, no swaps)`` with
     reversed bits), but with *annotated* (lazy) controls: qiskit's default eagerly synthesizes
     a controlled copy of every gate in Q^(2^j), which takes minutes at m >= 6."""
-    from qiskit.circuit.library import QFT
+    from qiskit.synthesis import synth_qft_full
 
     a_op = estimation_problem.state_preparation
     grover = estimation_problem.grover_operator
@@ -128,7 +128,7 @@ def qpe_circuit(estimation_problem, num_eval_qubits: int, measurement: bool) -> 
     circuit.h(eval_reg)
     for j in range(num_eval_qubits):
         circuit.append(grover_power(estimation_problem, 2**j, 1), [eval_reg[j], *state_reg])
-    iqft = QFT(num_eval_qubits, inverse=True, do_swaps=False).reverse_bits()
+    iqft = synth_qft_full(num_eval_qubits, do_swaps=False, inverse=True).reverse_bits()
     circuit.compose(iqft, list(eval_reg), inplace=True)
     if measurement:
         creg = ClassicalRegister(num_eval_qubits)

@@ -11,7 +11,7 @@ transpilation at small k.
 from __future__ import annotations
 
 from qiskit import QuantumCircuit
-from qiskit.circuit.library import QFT
+from qiskit.synthesis import synth_qft_full
 
 from qae_options.payoffs import PricingProblem
 from qcc_common.metrics import circuit_metrics
@@ -37,7 +37,9 @@ def component_costs(problem: PricingProblem, max_eval_qubits: int = 0) -> dict:
         controlled.append(grover.to_gate().control(1), range(grover.num_qubits + 1))
         costs["cQ"] = _cost(controlled)
         for m in range(1, max_eval_qubits + 1):
-            costs[f"iqft{m}"] = _cost(QFT(m, inverse=True, do_swaps=False).reverse_bits())
+            costs[f"iqft{m}"] = _cost(
+                synth_qft_full(m, do_swaps=False, inverse=True).reverse_bits()
+            )
     return costs
 
 
