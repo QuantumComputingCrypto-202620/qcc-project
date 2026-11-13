@@ -1,289 +1,248 @@
-# qcc-project: Repository Specification
+# qae-options: Project Specification
 
-This spec covers the whole repository: layout, tooling, shared code, conventions and CI.
-Each project has its own spec that defines its science, experiments and schedule:
+> **Option pricing with quantum amplitude estimation: QAE, IQAE and MLAE compared on a
+> non-standard payoff and distribution.**
+> Original proposal: *Valoración de opciones con estimación de amplitud cuántica* (course line
+> 2, option a). Individual project, 8 weeks.
 
-| Project | Directory | Spec | Summary |
-|---|---|---|---|
-| QAE option pricing | [`projects/qae-options/`](projects/qae-options/) | [SPEC](projects/qae-options/SPEC.md) | Compares QAE, IQAE and MLAE with classical Monte Carlo for a digital or barrier payoff on a bimodal distribution. |
-| VQE LiH dissociation | [`projects/vqe-lih/`](projects/vqe-lih/) | [SPEC](projects/vqe-lih/SPEC.md) | Compares UCCSD and a hardware-efficient ansatz along the full LiH curve, against exact diagonalization. |
+The repository started as a two-project monorepo (this project and `vqe-lih`); that layout is
+preserved on the `archive/monorepo` branch. It now contains only this project. Conventions:
+everything goes through [uv](https://docs.astral.sh/uv/) and the single committed `uv.lock`;
+every result comes from a committed TOML config and a fixed seed; summaries and figures are
+committed, raw outputs are not; fast tests run in CI, simulations over ~30 s are marked `slow`.
 
 ---
 
-## 1. Overview and goals
+## 1. Goal and verifiable claim
 
-`qcc-project` is a monorepo for individual projects in a quantum computing course, with one
-directory per project. Every project is an 8-week, simulator-first study written in Python
-with Qiskit.
+Classical Monte Carlo (MC) estimates an option's expected payoff with error that falls as
+O(1/√N) in the number of samples. Quantum amplitude estimation (QAE) promises error that falls
+as O(1/N) in the number of oracle queries. This project **measures** how that promise holds up
+in practice. It does not assume the quantum method wins.
 
-Principles:
+**Verifiable claim** (X, Y, Z and W are filled in from measured data):
 
-1. **Reproducible.** Every result can be regenerated from three things: a committed lockfile
-   (`uv.lock`), a committed config file and a fixed seed.
-2. **Honest comparisons.** No project claims quantum advantage. Each project states a
-   *verifiable claim* with numeric placeholders and fills them in from measured data, even if
-   the result is unfavourable.
-3. **Isolated projects.** Projects do not import each other. Each project has its own
-   dependencies, tests, configs, results and spec.
-4. **Minimal shared code.** Code moves into the shared package only after **two or more
-   projects** need it.
+> "To reach a price error ε = 10⁻³, IQAE uses **X** oracle queries and Monte Carlo uses **Y**
+> samples; the QPE-based version uses **Z** more qubits and a transpiled depth **W** times
+> larger."
 
-## 2. Repository layout
+**Result** (see [REPORT.md](REPORT.md) §1): X ≈ 3,700 IQAE queries vs Y ≈ 117,000 MC samples;
+Z = 6 more qubits and W ≈ 38× larger depth for QPE-based QAE (m = 6, MLE post-processing).
+Scrambled-Sobol QMC needs only ≈ 170 samples, and on the FakeSherbrooke noise model at ≥ 10 % of
+its strength the frontier is below k = 1, so no estimator reaches ε.
+
+Non-goals:
+- No claim of quantum advantage.
+- No results on real hardware beyond one optional short run.
+- No learned (qGAN) distribution loaders.
+
+## 2. New component (beyond the tutorials)
+
+Tutorials price a European call on a single lognormal. This project adds:
+
+1. **A non-standard distribution**: a mixture of two lognormals, which is bimodal. A
+   motivating scenario is a binary event such as a regulatory decision or earnings
+   announcement before expiry.
+2. **A non-standard payoff**: a digital (cash-or-nothing) call as the primary payoff, and a
+   discretely monitored barrier option as a stretch goal.
+3. **Three estimator variants compared on equal terms**:
+   - canonical QAE with QPE;
+   - iterative QAE (IQAE);
+   - maximum-likelihood QAE (MLAE), which does not use QPE.
+
+## 3. Model
+
+### 3.1 Distributions
+
+Each distribution is discretized on a grid of 2ⁿ points over a truncated interval
+[S_low, S_high]: the 0.1 % and 99.9 % quantiles, configurable. The register size is
+n = 3 to 7 qubits.
+
+| Name | Parameters | Use |
+|---|---|---|
+| `lognormal` | S₀, r, σ, T (GBM terminal distribution) | Validation against Black-Scholes |
+| `bimodal` | w; (μ₁, σ₁); (μ₂, σ₂) for the log-price | New component |
+
+Loading: the probabilities pᵢ are encoded as amplitudes √pᵢ with a generic state-preparation
+circuit (`qiskit.circuit.library.StatePreparation`). Both distributions use the **same** loader,
+so loading cost is compared like for like.
+
+### 3.2 Payoffs
+
+The A operator prepares √(1−a)|ψ₀⟩|0⟩ + √a|ψ₁⟩|1⟩. The price is a function of a.
+
+| Payoff | Definition | Circuit | Approximation error |
+|---|---|---|---|
+| European call (validation) | max(S_T − K, 0) | Piecewise-linear amplitude function (`LinearAmplitudeFunction`) with rescaling factor c | Yes: depends on c, so it is reported separately |
+| **Digital call (primary)** | Q · 1{S_T ≥ K} | `IntegerComparator` flips the objective qubit | **None**: a = P(S_T ≥ K) exactly on the grid |
+| Barrier (stretch) | Up-and-out digital: Q · 1{S_t₁ < B ∧ S_t₂ ≥ K}, 2 monitoring dates | Joint loader over 2 registers (2n qubits) + 2 comparators + AND | None on the grid; qubit count roughly doubles |
+
+The price is e^{−rT} · scale · a, where `scale` is Q for the digital payoff and the rescaling
+map for the call.
+
+The digital payoff makes the main study clean: on the grid it has no payoff-approximation
+error, so every measured error is **estimation** error.
+
+### 3.3 Classical references
+
+| Reference | How |
+|---|---|
+| **Discretized exact** (error baseline) | `Σᵢ pᵢ f(xᵢ)` on the same grid |
+| Continuous analytic | Black-Scholes for the lognormal call. Mixtures: the call is the weight-averaged Black-Scholes price; the digital is `Σⱼ wⱼ e^{−rT} Q Φ(d₂ⱼ)` |
+| Numerical check | `scipy.integrate.quad` on the continuous density |
+
+## 4. Estimators
+
+All three quantum estimators come from `qiskit-algorithms` (0.4: V2 primitives) and use a
+seeded shot-based SamplerV2.
+
+**Implementation notes (recorded during the project).**
+- Noiseless runs use `sampling.ExactDistributionSampler`. It computes each circuit's exact
+  output distribution once, from cached unitaries of its sub-instructions, and draws the shots
+  with a seeded multinomial. This has the same statistics as running the circuit; it is tested
+  against Aer gate-level simulation. Gate-level simulation of Q^k A is infeasible at the k IQAE
+  needs (~10⁷ gates at k ≈ 1,500). Noisy runs (E4) use Aer gate-level simulation.
+- Grover powers (IQAE, MLAE) and controlled powers (canonical QAE) are annotated operations on
+  one Q gate. The circuits are otherwise identical to the library's, with identical output
+  distributions (tested). Qiskit's eager controlled synthesis took over 30 min at m = 8.
+- Canonical QAE is reported with both the library's grid estimate and its MLE
+  post-processing.
+- The circuit cost of deep Grover powers is composed from transpiled components (A, Q,
+  controlled Q, inverse QFT) and checked against direct transpilation at small k.
+
+| Estimator | Class | Accuracy knob | Uses QPE |
+|---|---|---|---|
+| Canonical QAE | `AmplitudeEstimation(num_eval_qubits=m)` | m = 1 to 8 | Yes (m extra qubits + inverse QFT) |
+| IQAE | `IterativeAmplitudeEstimation(epsilon_target, alpha)` | ε_target from 10⁻¹ to 10⁻⁴, α = 0.05 | No |
+| MLAE | `MaximumLikelihoodAmplitudeEstimation(evaluation_schedule)` | Schedule {0, 1, 2, 4, …, 2^M}, M = 0 to 7 | No |
+| Classical MC | Our own code: sample N indices from {pᵢ}, average f | N = 10² to 10⁷ | n/a |
+| Quasi-MC (honesty check, optional) | Sobol points via `scipy.stats.qmc` on the continuous distribution | N | n/a |
+
+QMC is included because a "good classical method" can beat 1/√N on smooth problems. Leaving it
+out would bias the comparison.
+
+## 5. Definitions
+
+These definitions are fixed before any data is collected.
+
+- **Estimation error:** |â − a_exact| converted to price units. Here a_exact is computed from
+  the discretized exact reference. This is the error behind ε = 10⁻³ in the claim.
+- **Discretization error:** the gap between the discretized exact price and the continuous
+  analytic price. It is reported separately for each n and never mixed with estimation error.
+- **Payoff-approximation error:** the call only. It is reported for each value of c.
+- **Oracle queries.** One query is one application of A or of A†. The Grover operator
+  Q = A S₀ A† S_χ costs 2 queries, so a circuit with k Grover applications costs 2k + 1.
+  - Canonical QAE: one circuit has k = 2^m − 1 controlled Grover applications. The total is
+    shots · (2(2^m − 1) + 1).
+  - IQAE and MLAE: N_oracle = Σ over circuits c of shots_c · (2k_c + 1).
+  - Classical MC: one sample counts as one query.
+- **Circuit cost:** `qcc_common.metrics.circuit_metrics` reports qubits, transpiled depth and
+  2-qubit gate count. Settings: basis {rz, sx, x, ecr} (or cx), `optimization_level=2`, a fixed
+  seed and a linear coupling map. All of these are recorded in each result.
+- **Error statistics:** each point is run R = 50 times with seeds `seed + i`. The report gives
+  the median absolute error with the 16th and 84th percentile band. Slopes are least-squares
+  fits on log-log axes.
+
+## 6. Code layout, dependencies, commands
 
 ```text
 qcc-project/
-├── SPEC.md                      # this file: repo-wide spec
-├── README.md                    # quickstart: install uv, uv sync, run a project
-├── pyproject.toml               # uv workspace root (virtual: no [project] table)
-├── uv.lock                      # single lockfile for the whole workspace (committed)
-├── .python-version              # Python version used by uv
-├── .gitignore
-├── .github/
-│   └── workflows/ci.yml         # lint + fast tests for every workspace member
-├── packages/                    # shared libraries (not projects)
-│   └── qcc-common/
-│       ├── pyproject.toml       # name = "qcc-common"
-│       ├── src/qcc_common/
-│       │   ├── __init__.py
-│       │   ├── backends.py      # Aer simulators, noise models, optional IBM Runtime
-│       │   ├── metrics.py       # transpiled depth, 2q-gate count, qubits, parameters
-│       │   ├── results.py       # experiment records (config, seed, git SHA, versions)
-│       │   └── plotting.py      # shared matplotlib style, log-log helpers
-│       └── tests/
-└── projects/                    # one directory per project, fully self-contained
-    ├── qae-options/
-    │   ├── SPEC.md              # project spec
-    │   ├── README.md            # how to run this project
-    │   ├── pyproject.toml       # name = "qae-options", import name qae_options
-    │   ├── src/qae_options/     # library code + cli.py
-    │   ├── configs/             # experiment configs (TOML)
-    │   ├── notebooks/           # exploration only
-    │   ├── tests/
-    │   └── results/
-    │       ├── raw/             # gitignored
-    │       ├── summary/         # small CSVs, committed
-    │       └── figures/         # final plots, committed
-    └── vqe-lih/
-        ├── SPEC.md
-        ├── README.md
-        ├── pyproject.toml       # name = "vqe-lih", import name vqe_lih
-        ├── src/vqe_lih/
-        ├── configs/
-        ├── notebooks/
-        ├── tests/
-        └── results/{raw,summary,figures}/
+├── pyproject.toml         # one distribution: packages qae_options and qcc_common
+├── src/qcc_common/        # backends (Aer, scaled fake-IBM noise), metrics, results records, plotting, parallel_map
+├── src/qae_options/
+│   ├── distributions.py   # LogNormal, BimodalLogNormal; discretize(n, bounds) -> grid, probs; loader circuit
+│   ├── payoffs.py         # digital_call(), european_call(c), barrier_digital(); returns A, objective qubit, post-processing
+│   ├── estimators.py      # run_qae / run_iqae / run_mlae -> EstimateResult(estimate, ci, oracle_queries, circuits)
+│   ├── sampling.py        # ExactDistributionSampler (seeded SamplerV2; exact noiseless, Aer noisy)
+│   ├── resources.py       # circuit cost of A, Q^k A and canonical QAE from transpiled components
+│   ├── classical.py       # monte_carlo(), quasi_monte_carlo()
+│   ├── reference.py       # black_scholes_call(), mixture_digital(), discretized_exact()
+│   ├── experiments.py     # E1-E6 runners driven by config
+│   ├── cli.py             # `qae-options <experiment> --config ...`
+│   └── demo.py            # `qae-demo`: live presentation demo (demo/DEMO.md)
+├── configs/               # e1_validate.toml, e2_convergence.toml, e3_resources.toml, e4_noise.toml, e5_loading.toml
+├── run_all.sh             # regenerates every result in order (resumable)
+├── REPORT.md              # final report
+├── demo/DEMO.md           # live-demo run sheet
+├── notebooks/             # exploration and figure assembly only
+├── tests/
+└── results/{raw,summary,figures}/
 ```
 
-### Separation rules
+Dependencies:
+- Core: `qiskit`, `qiskit-aer`, `qiskit-algorithms`, `numpy`, `scipy`, `pandas`,
+  `matplotlib`; `rich` for the demo's terminal output.
+- `qiskit-ibm-runtime` provides the fake IBM backends (`FakeSherbrooke`) behind the noisy
+  simulator, and hardware access (E6).
+- `qiskit-finance` is **not** a dependency: the circuits are built here (see §10).
 
-- `projects/*` may depend on `packages/*`. They must **never** depend on another `projects/*`.
-- `packages/*` must never depend on `projects/*`.
-- Each project owns its `pyproject.toml`, `README.md`, `SPEC.md`, `tests/`, `configs/` and `results/`.
-- Notebooks are for exploration and presenting results. Any function a notebook relies on
-  lives in `src/` and is tested.
-- Naming: directory and distribution names use kebab-case (`qae-options`); import names use
-  snake_case (`qae_options`).
-
-## 3. Tooling: uv workspace
-
-All Python environments, dependencies and commands go through **[uv](https://docs.astral.sh/uv/)**.
-`pip install`, `conda` and hand-made virtualenvs are not used. The repo is a
-[uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/): every member shares
-one `.venv` and one `uv.lock`.
-
-### 3.1 Root `pyproject.toml`
-
-```toml
-[tool.uv.workspace]
-members = ["packages/*", "projects/*"]
-
-[dependency-groups]
-dev = [
-    "pytest>=8",
-    "ruff>=0.6",
-    "ipykernel>=6",
-    "jupyterlab>=4",
-]
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-extend-exclude = ["**/notebooks/**"]
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "NPY"]
-
-[tool.pytest.ini_options]
-# importlib mode lets every member have tests/test_*.py files with the same names.
-addopts = ["--import-mode=importlib"]
-markers = ["slow: long-running simulation tests (deselect with -m 'not slow')"]
+```bash
+uv sync
+uv run qae-options e2 --config configs/e2_convergence.toml
+uv run pytest -m "not slow"
 ```
 
-The root is a *virtual* workspace root: it has no `[project]` table and is never built or
-installed.
+Required fast tests:
+- Discretized probabilities sum to 1, and the loader statevector reproduces √pᵢ.
+- On the grid, the digital-payoff amplitude equals P(S_T ≥ K) (exact statevector check).
+- `discretized_exact` agrees with Black-Scholes as n grows, for the lognormal call.
+- The mixture-digital closed form matches `quad`.
+- The oracle-query counter gives the expected totals for small m and k.
 
-### 3.2 Member `pyproject.toml` (pattern)
+## 7. Experiments
 
-```toml
-[project]
-name = "qae-options"
-version = "0.1.0"
-requires-python = ">=3.12,<3.13"
-dependencies = [
-    "qcc-common",
-    "qiskit-algorithms",
-    "scipy",
-]
+| ID | Question | Setup | Output |
+|---|---|---|---|
+| **E1** | Does the pipeline give correct prices? | Lognormal, European call, n = 3 to 5, all three estimators at high precision | Table comparing each estimate with the discretized-exact and Black-Scholes prices; discretization and c-approximation errors |
+| **E2** | How does error scale with queries? | Bimodal + digital, n fixed (default 5); sweep the knob of each estimator plus MC (and QMC); R = 50 | Log-log plot of error vs oracle queries with error bands and fitted slopes (expect ≈ −1 for the QAE variants, ≈ −½ for MC); fills in X and Y |
+| **E3** | What does each variant cost in hardware resources? | Same A operator; QAE at the m needed for ε = 10⁻³, IQAE and MLAE at their largest k | Table of qubits, depth and 2q gates per variant; fills in Z and W |
+| **E4** | At what depth does noise remove the convergence advantage? | E2 repeated on `noisy_simulator` (fake IBM backend) with noise scale ∈ {0.1, 0.3, 1.0}. **As run:** n = 3 (gate-level noisy simulation), MLAE and IQAE, R = 20, with scales 0.01 and 0.03 added to locate the frontier | Error vs queries under noise; the largest useful Grover power k* and its depth, i.e. the "frontier" |
+| **E5** | How much does loading the distribution cost? | Loader depth and 2q gates vs n = 3 to 7, lognormal vs bimodal; share of the total A-operator depth | Plot and discussion of loading as a possible bottleneck that can cancel the quadratic speedup |
+| E6 (optional) | Does it run on real hardware? | IBM backend, digital payoff, n = 3, IQAE with small k, a few shots. **Not run:** no IBM Quantum access | Estimate compared with the simulator and the noisy simulator |
+| Stretch | Barrier payoff | Barrier digital at n = 3 per date (6 + ancilla qubits) | E1 and E3 rows for the barrier |
 
-[project.scripts]
-qae-options = "qae_options.cli:main"
+## 8. Milestones
 
-[tool.uv.sources]
-qcc-common = { workspace = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-```
-
-### 3.3 Python version
-
-`.python-version` pins **3.12**. Week 0 confirmed that qiskit, qiskit-aer, qiskit-algorithms,
-qiskit-nature and pyscf all have wheels for it; the resolved versions are in the README.
-
-### 3.4 Command cheat-sheet
-
-| Task | Command |
-|---|---|
-| Install everything (all members + dev group) | `uv sync --all-packages` |
-| Install a single project | `uv sync --package vqe-lih` |
-| Run a project CLI | `uv run --package qae-options qae-options sweep --config projects/qae-options/configs/e2.toml` |
-| Run one project's tests | `uv run --package vqe-lih pytest projects/vqe-lih` |
-| Run all fast tests | `uv run pytest -m "not slow"` |
-| Add a dependency to a project | `uv add --package qae-options scipy` |
-| Add a dev tool repo-wide | `uv add --dev mypy` |
-| Add an optional extra | `uv add --package vqe-lih --optional stretch <pkg>` |
-| Upgrade one package in the lock | `uv lock --upgrade-package qiskit` |
-| Verify the lock is up to date (CI) | `uv lock --check` |
-| Start Jupyter | `uv run --package vqe-lih jupyter lab` |
-
-Rules:
-
-- `uv.lock` is always committed. Any change to dependencies is a `uv add` or `uv remove`
-  followed by a commit that includes the lockfile.
-- `qiskit-ibm-runtime` is a core dependency of `qcc-common`, because the fake IBM backends
-  that `noisy_simulator` needs (`FakeSherbrooke`, …) ship only in that package since Qiskit 1.0.
-  Installing it does not touch hardware: real-device access still needs an explicit
-  `ibm_runtime_session()` call and a token (§5.4).
-
-### 3.5 Single lockfile: implications
-
-A workspace resolves **one** version of every package for all members, so both projects share
-one Qiskit version. qiskit-nature (0.7.x) and qiskit-algorithms are community-maintained and
-often lag behind Qiskit core, so the Qiskit version is set by what they support.
-
-- Week 0: run `uv lock` with all members and record the resolved versions in the README.
-- If the projects ever need incompatible versions:
-  - first choice: declare them with [`[tool.uv] conflicts`](https://docs.astral.sh/uv/concepts/projects/config/#conflicting-dependencies);
-  - otherwise: remove the project from `members` and give it its own lockfile. It keeps its
-    place under `projects/` and still uses `qcc-common` through a path source.
-
-## 4. Shared package: `qcc-common`
-
-This package contains only code that both projects need. Every module is small and tested.
-
-| Module | Responsibility |
-|---|---|
-| `backends` | `statevector_simulator()`, `shot_simulator(shots, seed)`, `noisy_simulator(fake_backend="FakeSherbrooke", scale=1.0)`. `scale` multiplies every gate and readout error rate and divides T1/T2. `ibm_runtime_session()` reads `QISKIT_IBM_TOKEN` from the environment or `.env`. |
-| `metrics` | `circuit_metrics(circuit, basis=..., optimization_level=..., seed_transpiler=...) -> {num_qubits, num_parameters, logical_depth, depth, two_qubit_gates, transpile}`. Transpilation uses one fixed basis ({rz, sx, x, ecr}), optimization level 2, a fixed seed and a linear coupling map, so numbers are comparable across projects; `transpile` records those settings. `logical_depth` is the depth after unrolling to {u, cx} without mapping or optimization. |
-| `results` | `ExperimentRecord` (config dict, seed, git SHA, `uv.lock` hash, package versions, timestamp, metrics, payload). It provides `save()`/`load()` to JSON under `results/raw/`. Parquet for large sweeps is added when a project needs it. |
-| `plotting` | Shared matplotlib style (`apply_style`), a validated categorical palette with per-series markers (`series_style`), standard figure sizes, and `save_figure` (PNG + PDF). Log-log slope fits live in qae-options, the only project that needs them. |
-| `parallel` | `parallel_map(fn, jobs, workers, checkpoint_dir)`: runs experiment jobs in worker processes and checkpoints each finished job, so an interrupted run resumes. |
-
-What does **not** belong here: anything about finance or chemistry, algorithm wrappers,
-project configs.
-
-## 5. Cross-cutting conventions
-
-### 5.1 Experiments
-
-- Each experiment (E1, E2, …, as defined in the project spec) has a TOML config in
-  `projects/<p>/configs/`.
-- Every run goes through the project CLI (`[project.scripts]`), so notebooks only *read*
-  results and never produce them.
-- Every config sets an explicit `seed`. Repetitions use `seed + i`.
-- Outputs:
-  - `results/raw/`: everything, gitignored.
-  - `results/summary/`: small CSVs, committed.
-  - `results/figures/`: final figures, committed, both PNG and PDF.
-
-### 5.2 Testing
-
-- `pytest` lives in each member's `tests/`.
-- Fast tests (seconds) run in CI. These include analytic checks, normalization checks and small
-  circuits.
-- Simulations longer than about 30 s are marked `@pytest.mark.slow` and run locally.
-- Each project spec lists its required tests.
-
-### 5.3 Code style
-
-- `ruff check` and `ruff format`. Type hints on public functions.
-- Docstrings say what the units are (Hartree, Å, price units) wherever relevant.
-
-### 5.4 Secrets
-
-- The IBM Quantum token comes only from the `QISKIT_IBM_TOKEN` environment variable or a local
-  `.env` file, which is gitignored.
-- Tokens are never written into configs, notebooks or results.
-
-### 5.5 CI (`.github/workflows/ci.yml`)
-
-- Uses `astral-sh/setup-uv`, then runs:
-  1. `uv lock --check`
-  2. `uv sync --locked --all-packages`
-  3. `uv run ruff check`
-  4. `uv run ruff format --check`
-  5. `uv run pytest -m "not slow"`
-- A matrix over the workspace members (`packages/qcc-common`, `projects/qae-options`,
-  `projects/vqe-lih`) runs each member's tests in its own job.
-- Runs on Ubuntu only, because PySCF has no Windows wheels.
-
-## 6. Adding a new project
-
-1. `uv init --package projects/<name>`. It is picked up automatically by the `projects/*` member glob.
-2. Add `qcc-common = { workspace = true }` under `[tool.uv.sources]` if it is needed.
-3. Create `SPEC.md` (follow the structure of the existing project specs), `README.md`,
-   `configs/`, `tests/` and `results/{raw,summary,figures}/`.
-4. Add the project to the Projects table at the top of this file and to the CI matrix.
-5. `uv lock`, then commit the lockfile.
-
-## 7. Milestones
-
-### Week 0: shared scaffold (before either project's week 1)
-
-- [x] Root `pyproject.toml`, `.python-version`, `.gitignore` (`.venv/`, `results/raw/`, `.env`, `.ipynb_checkpoints/`)
-- [x] `packages/qcc-common` skeleton with `backends` and `metrics`, plus tests
-- [x] `uv init --package` for `projects/qae-options` and `projects/vqe-lih`
-- [x] `uv lock` resolves qiskit, qiskit-aer, qiskit-algorithms and qiskit-nature + pyscf together; resolved versions recorded in the README
-- [x] Smoke test: a Bell circuit on the Aer simulator through `qcc_common.backends`, and `circuit_metrics` on it
-- [ ] CI green on an empty test suite
-- [x] `README.md` quickstart
-
-**Done when:** a fresh clone runs `uv sync --all-packages && uv run pytest` with everything
-passing.
-
-### Weeks 1–8
-
-Each project has its own schedule:
-
-- [QAE options: milestones](projects/qae-options/SPEC.md#8-milestones)
-- [VQE LiH: milestones](projects/vqe-lih/SPEC.md#9-milestones)
-
-## 8. Cross-cutting risks and open questions
-
-| Risk | Impact | Mitigation |
+| Week | Work | Done when |
 |---|---|---|
-| qiskit-nature or qiskit-algorithms lag behind Qiskit core | Lock fails, or deprecated APIs | Pin Qiskit to the line both support (checked in week 0); fall back to `[tool.uv] conflicts` or a separate lock (§3.5). |
-| Single lockfile couples the projects | Upgrading one project breaks the other | Upgrade with `uv lock --upgrade-package <pkg>` and run both test suites before committing. |
-| PySCF unavailable on Windows | Contributor cannot install `vqe-lih` | Use WSL2 or a Linux/macOS machine; CI runs on Ubuntu. |
-| IBM hardware access or queue times | Optional hardware experiments slip | Hardware runs are optional in both projects; noisy simulators from fake backends are the baseline. |
+| 1 | Review Grover, QPE and amplitude amplification. `distributions.py` (lognormal) and the loader. `reference.py` with Black-Scholes | Loader tests pass; the discretized-exact price converges to Black-Scholes |
+| 2 | European call A operator and a basic canonical QAE run (statevector) | E1 for canonical QAE within the expected error |
+| 3 | `estimators.py`: QAE, IQAE and MLAE with one interface; the oracle-query counter | All three estimators reproduce E1; query-counter tests pass |
+| 4 | Validation against Black-Scholes; `classical.py` (MC, QMC) | E1 table complete |
+| 5 | Bimodal distribution, digital payoff, mixture closed form | Digital tests pass; reference prices fixed in the E2 config |
+| 6 | E2 sweeps with R repetitions; E3 resource table | E2 figure and fitted slopes; claim fields X, Y, Z, W filled in |
+| 7 | E4 noise sweeps; E5 loading analysis; optional E6 on hardware | E4 frontier identified; E5 figure |
+| 8 | Final figures, report, conclusions | All figures in `results/figures/`; claim stated with numbers; README updated |
+
+Checklist:
+- [x] E1 validation
+- [x] E2 convergence
+- [x] E3 resources
+- [x] E4 noise frontier
+- [x] E5 loading cost
+- [ ] E6 hardware (optional): not run, no IBM Quantum access
+- [x] Barrier (stretch): E1 and E3 rows, n = 3 per date
+- [x] Report
+
+## 9. Acceptance criteria
+
+- The verifiable claim (§1) is stated with measured values of X, Y, Z and W, and each value
+  points to its config and result file.
+- E2 fitted slopes are reported with uncertainty. A slope that differs from −1 or −½ is
+  explained, not hidden.
+- Discretization, payoff-approximation and estimation errors are reported separately.
+- E4 names a concrete depth or Grover power where the advantage disappears under the chosen
+  noise model, or states that it was not reached within the range tested.
+- The report has an honest discussion of the loading cost (E5).
+- Every figure can be regenerated from the CLI with a committed config.
+
+## 10. Risks and fallback
+
+| Risk | Mitigation |
+|---|---|
+| Canonical QAE circuits too deep to simulate or transpile at large m or n | Cut n to 3–5 qubits and cap m; focus the study on comparing QPE with the iterative variant (as in the proposal) |
+| The barrier payoff needs too many qubits | Keep it as a stretch goal; the digital payoff alone satisfies the "new payoff" requirement |
+| qiskit-algorithms API or primitive version mismatch with the pinned Qiskit | Check in week 1; isolate behind `estimators.py` so the rest of the code doesn't change |
+| QMC beats quantum in query count | That is a valid result; report it |
+| `qiskit-finance` unmaintained or incompatible | Not used. The loaders and payoff circuits are built here from `qiskit.circuit.library`; only the uncertainty-model *pattern* is borrowed |
+| Noise destroys convergence even at k = 1 | Lower the noise scale to find where convergence starts; "the frontier is below k = 1 at realistic noise" is itself a measurable result |
