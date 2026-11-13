@@ -70,7 +70,7 @@ class Demo:
         return self.state[key]
 
     def show(self, path: Path) -> None:
-        console.print(f"  [dim]figure:[/] {path.relative_to(PROJECT_ROOT)}")
+        console.print(f"  [dim]figura:[/] {path.relative_to(PROJECT_ROOT)}")
         if self.args.no_open:
             return
         try:
@@ -142,20 +142,22 @@ def step_problem(demo: Demo) -> None:
     problem, dist, continuous = demo.problem(n)
     k = PAYOFF["strike"]
     say(
-        "A binary event before expiry (e.g. a regulatory decision):\n"
-        "  40 % 'bad news'  -> price near  85\n"
-        "  60 % 'good news' -> price near 115\n"
-        "Digital call: pays 1 if S_T >= K = 100 at T = 6 months.\n"
-        "Price = e^(-rT) P(S_T >= K)"
+        "Un evento binario antes del vencimiento (p. ej. una decisión regulatoria):\n"
+        "  40 % «malas noticias»  -> precio cerca de  85\n"
+        "  60 % «buenas noticias» -> precio cerca de 115\n"
+        "Call digital: paga 1 si S_T >= K = 100 a T = 6 meses.\n"
+        "Precio = e^(-rT) P(S_T >= K)"
     )
     table = Table(box=box.SIMPLE_HEAVY)
-    table.add_column("Quantity")
-    table.add_column("Value", justify="right")
-    table.add_row("Continuous price (closed form)", f"{continuous:.6f}")
-    table.add_row(f"Grid price, n = {n} qubits ({2**n} points)", f"{problem.discretized_price:.6f}")
-    table.add_row("Discretization error", f"{problem.discretized_price - continuous:+.2e}")
+    table.add_column("Cantidad")
+    table.add_column("Valor", justify="right")
+    table.add_row("Precio continuo (forma cerrada)", f"{continuous:.6f}")
     table.add_row(
-        "Amplitude to estimate  a = P(S_T >= K) on the grid", f"{problem.exact_amplitude:.6f}"
+        f"Precio en la malla, n = {n} qubits ({2**n} puntos)", f"{problem.discretized_price:.6f}"
+    )
+    table.add_row("Error de discretización", f"{problem.discretized_price - continuous:+.2e}")
+    table.add_row(
+        "Amplitud a estimar  a = P(S_T >= K) en la malla", f"{problem.exact_amplitude:.6f}"
     )
     console.print(table)
 
@@ -168,13 +170,20 @@ def step_problem(demo: Demo) -> None:
     xs = np.linspace(grid.low, grid.high, 400)
     fig, ax = plt.subplots(figsize=(7.5, 3.8))
     colors = [SERIES_COLORS[1] if x >= k else SERIES_COLORS[0] for x in grid.x]
-    ax.bar(grid.x, grid.probs / dx, width=dx * 0.9, color=colors, alpha=0.55, label="grid cells")
-    ax.plot(xs, dist.pdf(xs), color="#1f1f1e", lw=1.6, label="continuous density")
+    ax.bar(
+        grid.x,
+        grid.probs / dx,
+        width=dx * 0.9,
+        color=colors,
+        alpha=0.55,
+        label="celdas de la malla",
+    )
+    ax.plot(xs, dist.pdf(xs), color="#1f1f1e", lw=1.6, label="densidad continua")
     ax.axvline(k, color=REFERENCE, ls="--", lw=1)
     ax.text(k + 1, ax.get_ylim()[1] * 0.92, "K = 100", color=REFERENCE)
-    ax.set_xlabel("price at expiry S_T")
-    ax.set_ylabel("density")
-    ax.set_title(f"Bimodal price distribution on 2^{n} = {2**n} grid points  (orange: payoff = 1)")
+    ax.set_xlabel("precio al vencimiento S_T")
+    ax.set_ylabel("densidad")
+    ax.set_title(f"Distribución bimodal en 2^{n} = {2**n} puntos de malla  (naranja: pago = 1)")
     ax.legend(loc="upper left")
     demo.show(save_figure(fig, demo.out / "01_distribution", formats=("png",))[0])
 
@@ -188,23 +197,23 @@ def step_circuit(demo: Demo) -> None:
     n = demo.args.n
     problem, _, _ = demo.problem(n)
     say(
-        f"A = loader + comparator on {n + 1} qubits.\n"
-        f"  P(S):  prepares sum_i sqrt(p_i)|i>  on {n} price qubits\n"
-        "  cmp:   flips the objective qubit iff i >= index(K)\n"
-        "=> P(objective = 1) = a, the price we want.\n"
-        "One application of A (or its inverse) = one oracle query."
+        f"A = cargador + comparador en {n + 1} qubits.\n"
+        f"  P(S):  prepara sum_i sqrt(p_i)|i>  en {n} qubits de precio\n"
+        "  cmp:   invierte el qubit objetivo si y solo si i >= índice(K)\n"
+        "=> P(objetivo = 1) = a, el precio que buscamos.\n"
+        "Una aplicación de A (o de su inversa) = una consulta al oráculo."
     )
     console.print(schematic(problem.a_operator).draw("text"))
     p1 = float(Statevector(problem.a_operator).probabilities([problem.objective_qubit])[1])
     console.print(
-        f"  statevector P(objective = 1) = [bold]{p1:.10f}[/]   "
-        f"sum of grid tail = {problem.exact_amplitude:.10f}"
+        f"  vector de estado: P(objetivo = 1) = [bold]{p1:.10f}[/]\n"
+        f"  suma de la cola de la malla:       {problem.exact_amplitude:.10f}"
     )
-    with console.status("  transpiling A to {rz, sx, x, ecr} on a linear chain ..."):
+    with console.status("  transpilando A a {rz, sx, x, ecr} en una cadena lineal ..."):
         metrics = circuit_metrics(problem.a_operator)
     console.print(
-        f"  hardware cost of ONE query: depth [bold]{metrics['depth']:,}[/], "
-        f"two-qubit gates [bold]{metrics['two_qubit_gates']:,}[/]"
+        f"  costo en hardware de UNA consulta: profundidad [bold]{metrics['depth']:,}[/],\n"
+        f"  compuertas de dos qubits [bold]{metrics['two_qubit_gates']:,}[/]"
     )
 
 
@@ -221,16 +230,23 @@ def step_grover(demo: Demo) -> None:
     a = problem.exact_amplitude
     theta = float(np.arcsin(np.sqrt(a)))
     say(
-        "Write a = sin^2(theta).  The Grover operator Q rotates the state by 2 theta,\n"
-        "so after k applications:  P(objective = 1) = sin^2((2k + 1) theta).\n"
-        "Reading a frequency to precision eps takes ~1/eps queries;\n"
-        "averaging coin flips (Monte Carlo) takes ~1/eps^2."
+        "Escribimos a = sin^2(theta).  El operador de Grover Q rota el estado\n"
+        "2 theta, así que tras k aplicaciones:\n"
+        "  P(objetivo = 1) = sin^2((2k + 1) theta).\n"
+        "Leer una frecuencia con precisión eps toma ~1/eps consultas;\n"
+        "promediar lanzamientos de moneda (Monte Carlo) toma ~1/eps^2."
     )
     rng = np.random.default_rng(demo.args.seed)
     cache: dict = {}
     ks = [0, 1, 2, 3, 4, 6, 8] if demo.quick else [0, 1, 2, 3, 4, 6, 8, 12, 16]
     table = Table(box=box.SIMPLE_HEAVY, title=f"theta = {theta:.5f} rad")
-    for col in ("k", "queries/shot", "circuit P(1)", "sin^2((2k+1)theta)", f"{SHOTS}-shot sample"):
+    for col in (
+        "k",
+        "consultas/shot",
+        "P(1) circuito",
+        "sin^2((2k+1)theta)",
+        f"muestra {SHOTS} shots",
+    ):
         table.add_column(col, justify="right")
     measured = []
     for k in ks:
@@ -261,7 +277,7 @@ def step_grover(demo: Demo) -> None:
         [m[1] for m in measured],
         "o",
         color=SERIES_COLORS[0],
-        label="circuit (exact)",
+        label="circuito (exacto)",
     )
     ax.plot(
         [m[0] for m in measured],
@@ -271,10 +287,10 @@ def step_grover(demo: Demo) -> None:
         mfc="none",
         label=f"{SHOTS} shots",
     )
-    ax.set_xlabel("Grover applications k")
-    ax.set_ylabel("P(objective = 1)")
+    ax.set_xlabel("aplicaciones de Grover k")
+    ax.set_ylabel("P(objetivo = 1)")
     ax.set_ylim(-0.03, 1.03)
-    ax.set_title("Amplitude amplification: a sets the frequency of the oscillation")
+    ax.set_title("Amplificación de amplitud: a fija la frecuencia de la oscilación")
     ax.legend(loc="lower right")
     demo.show(save_figure(fig, demo.out / "03_grover", formats=("png",))[0])
 
@@ -296,9 +312,9 @@ def step_race(demo: Demo) -> None:
     # 1. One IQAE run, iteration by iteration.
     eps_one = 1e-2 if demo.quick else 1e-3
     say(
-        f"Iterative QAE (no phase estimation, no extra qubits), eps = {eps_one:g}.\n"
-        "Each round picks the largest Grover power k that keeps the angle\n"
-        f"unambiguous, measures {SHOTS} shots and shrinks the confidence interval."
+        f"QAE iterativa (sin estimación de fase, sin qubits extra), eps = {eps_one:g}.\n"
+        "Cada ronda elige la mayor potencia de Grover k que mantiene el ángulo\n"
+        f"sin ambigüedad, mide {SHOTS} shots y reduce el intervalo de confianza."
     )
     cache: dict = {}
     sampler = ExactDistributionSampler(SHOTS, seed=demo.args.seed, cache=cache)
@@ -308,7 +324,13 @@ def step_race(demo: Demo) -> None:
     )
     elapsed = time.perf_counter() - t0
     table = Table(box=box.SIMPLE_HEAVY)
-    for col in ("round", "Grover power k", "queries so far", "price interval", "width"):
+    for col in (
+        "ronda",
+        "k de Grover",
+        "consultas",
+        "intervalo de precio",
+        "ancho",
+    ):
         table.add_column(col, justify="right")
     queries = 0
     for i, (k, (lo, hi)) in enumerate(
@@ -322,16 +344,18 @@ def step_race(demo: Demo) -> None:
     console.print(table)
     est = problem.to_price(float(result.estimation))
     console.print(
-        f"  estimate [bold]{est:.6f}[/]  exact {exact:.6f}  error [bold]{abs(est - exact):.1e}[/]"
-        f"\n  using [bold]{queries:,}[/] oracle queries  ({elapsed:.2f} s on this laptop)"
+        f"  estimación [bold]{est:.6f}[/]  exacto {exact:.6f}  "
+        f"error [bold]{abs(est - exact):.1e}[/]"
+        f"\n  con [bold]{queries:,}[/] consultas al oráculo  ({elapsed:.2f} s en este portátil)"
     )
 
     # 2. The race: R seeds per target, Monte Carlo gets exactly IQAE's query budget.
     reps = demo.args.reps or (5 if demo.quick else 20)
     targets = [1e-1, 1e-2] if demo.quick else [1e-1, 1e-2, 1e-3, 3e-4]
     say(
-        f"Now {reps} independent seeds per target.  Monte Carlo gets the SAME number\n"
-        "of samples as IQAE used queries.  Errors: medians vs the exact grid price."
+        f"Ahora {reps} semillas independientes por objetivo.  Monte Carlo recibe el MISMO\n"
+        "número de muestras que consultas usó IQAE.  Errores: medianas frente al\n"
+        "precio exacto de la malla."
     )
     rows, points = [], []
     with progress() as bar:
@@ -354,11 +378,11 @@ def step_race(demo: Demo) -> None:
     sigma = discount * np.sqrt(problem.exact_amplitude * (1 - problem.exact_amplitude))
     table = Table(box=box.SIMPLE_HEAVY)
     for col in (
-        "IQAE eps_target",
-        "median queries",
-        "IQAE error",
-        "MC error, same budget",
-        "MC samples for IQAE's error",
+        "eps IQAE",
+        "consultas",
+        "error IQAE",
+        "error MC",
+        "MC necesarias",
         "MC / IQAE",
     ):
         table.add_column(col, justify="right")
@@ -369,8 +393,10 @@ def step_race(demo: Demo) -> None:
         )
     console.print(table)
     console.print(
-        "  [dim]MC samples for IQAE's error = (0.6745 sigma / error)^2,\n"
-        f"  sigma = {sigma:.4f} = standard deviation of the discounted payoff.[/]"
+        "  [dim]consultas: mediana de IQAE.  error MC: con el mismo presupuesto.\n"
+        "  MC necesarias: muestras de MC para igualar el error de IQAE,\n"
+        "  = (0.6745 sigma / error)^2 con\n"
+        f"  sigma = {sigma:.4f} = desviación estándar del pago descontado.[/]"
     )
 
     plt = _figure()
@@ -391,16 +417,16 @@ def step_race(demo: Demo) -> None:
         [p[2] for p in points],
         ls="none",
         alpha=0.6,
-        label="Monte Carlo (same budget)",
+        label="Monte Carlo (mismo presupuesto)",
         **{k: v for k, v in series_style(1).items() if k != "linestyle"},
     )
     qq = np.geomspace(q.min(), q.max(), 50)
     med = rows[0]
     ax.loglog(qq, med[2] * med[1] / qq, color=REFERENCE, ls="--", lw=1, label="∝ 1/N")
     ax.loglog(qq, med[3] * np.sqrt(med[1] / qq), color=REFERENCE, ls=":", lw=1, label="∝ 1/√N")
-    ax.set_xlabel("oracle queries N (samples for MC)")
-    ax.set_ylabel("|error| (price units)")
-    ax.set_title(f"Live run: {reps} seeds per IQAE target, n = {n}")
+    ax.set_xlabel("consultas al oráculo N (muestras para MC)")
+    ax.set_ylabel("|error| (unidades de precio)")
+    ax.set_title(f"Corrida en vivo: {reps} semillas por objetivo de IQAE, n = {n}")
     ax.legend(loc="lower left")
     demo.show(save_figure(fig, demo.out / "04_race", formats=("png",))[0])
 
@@ -410,24 +436,25 @@ def step_study(demo: Demo) -> None:
     fits = json.loads((SUMMARY / "e2_convergence_fits.json").read_text())
     claim = json.loads((SUMMARY / "e3_resources_claim.json").read_text())
     say(
-        "The full study: 49 settings x 50 seeds (E2), transpiled resources (E3).\n"
-        "Read from results/summary/ (run_all.sh regenerates it in ~1.5 h)."
+        "El estudio completo: 49 configuraciones x 50 semillas (E2) y recursos\n"
+        "transpilados (E3).  Leído de results/summary/\n"
+        "(run_all.sh lo regenera en ~1.5 h)."
     )
     labels = {
         "iqae": "IQAE",
         "mlae": "MLAE",
         "qae_mle": "QAE + MLE",
-        "qae": "QAE (grid)",
+        "qae": "QAE (malla)",
         "mc": "Monte Carlo",
         "qmc": "quasi-MC (Sobol)",
     }
-    table = Table(box=box.SIMPLE_HEAVY, title="error ∝ N^slope  (E2)")
-    table.add_column("Method")
-    table.add_column("slope", justify="right")
-    table.add_column("queries to eps = 1e-3", justify="right")
+    table = Table(box=box.SIMPLE_HEAVY, title="error ∝ N^pendiente  (E2)")
+    table.add_column("Método")
+    table.add_column("pendiente", justify="right")
+    table.add_column("consultas para eps = 1e-3", justify="right")
     for key, label in labels.items():
         f, q = fits["fits"][key], fits["queries_for_epsilon"][key]
-        note = "" if q["how"] == "interpolated" else " (extrapolated)"
+        note = "" if q["how"] == "interpolated" else " (extrapolado)"
         style = "bold" if key in ("iqae", "mc", "qmc") else ""
         table.add_row(
             label,
@@ -441,13 +468,13 @@ def step_study(demo: Demo) -> None:
     qmc = claim["also"]["qmc_samples"]["queries"]
     console.print(
         Panel(
-            f"To reach eps = 1e-3, IQAE uses X ≈ {x:,.0f} queries and\n"
-            f"Monte Carlo uses Y ≈ {y:,.0f} samples ({y / x:.0f}x more).\n"
-            f"Canonical QAE needs Z = {claim['Z_extra_qubits_qae']} extra qubits and "
-            f"W ≈ {claim['W_depth_ratio_qae_over_iqae']:.0f}x IQAE's depth.\n"
-            f"[bold]But[/] quasi-Monte Carlo needs only ≈ {qmc:,.0f} samples:\n"
-            "no advantage over a good classical method.",
-            title="Verifiable claim",
+            f"Para alcanzar eps = 1e-3, IQAE usa X ≈ {x:,.0f} consultas y\n"
+            f"Monte Carlo usa Y ≈ {y:,.0f} muestras ({y / x:.0f}x más).\n"
+            f"La QAE canónica necesita Z = {claim['Z_extra_qubits_qae']} qubits extra y\n"
+            f"W ≈ {claim['W_depth_ratio_qae_over_iqae']:.0f}x la profundidad de IQAE.\n"
+            f"[bold]Pero[/] quasi-Monte Carlo necesita solo ≈ {qmc:,.0f} muestras:\n"
+            "no hay ventaja frente a un buen método clásico.",
+            title="Afirmación verificable",
             border_style="green",
             expand=False,
         )
@@ -461,18 +488,20 @@ def step_noise(demo: Demo) -> None:
 
     n = 3
     say(
-        "The same circuits on a noisy simulator: IBM FakeSherbrooke noise model\n"
-        f"(gate, readout, T1/T2 errors), n = {n} price qubits.\n"
-        "'scale' multiplies every error rate: 1 = today's device."
+        "Los mismos circuitos en un simulador con ruido: modelo FakeSherbrooke de IBM\n"
+        f"(errores de compuerta, lectura y T1/T2), n = {n} qubits de precio.\n"
+        "«escala» multiplica cada tasa de error: 1 = el dispositivo actual."
     )
     scales = [1.0] if demo.quick else [1.0, 0.03]
     powers = [0, 1, 2] if demo.quick else [0, 1, 2, 4, 8]
     shots = 2000
     table = Table(box=box.SIMPLE_HEAVY)
-    for col in ("noise scale", "k", "device 2q gates", "P ideal", "P noisy", "|deviation|"):
+    for col in ("escala de ruido", "k", "compuertas 2q", "P ideal", "P con ruido", "|desviación|"):
         table.add_column(col, justify="right")
     for scale in scales:
-        with console.status(f"  simulating Q^k A on the noisy device, scale = {scale:g} ..."):
+        with console.status(
+            f"  simulando Q^k A en el dispositivo con ruido, escala = {scale:g} ..."
+        ):
             with contextlib.redirect_stderr(io.StringIO()):
                 rows = _contrast_job(
                     {
@@ -501,10 +530,10 @@ def step_noise(demo: Demo) -> None:
     console.print(table)
     frontier = json.loads((SUMMARY / "e4_noise_frontier.json").read_text())
     console.print(
-        "  E4: at realistic noise (scale 0.1-1) the best estimator uses k <= 1;\n"
-        f"  its median error is {frontier['0.1']['median_error_at_best']:.3f}-"
-        f"{frontier['1.0']['median_error_at_best']:.3f}, i.e. 25-95x eps.\n"
-        "  Grover iterations only help below ~3 % of today's noise."
+        "  E4: con ruido realista (escala 0.1-1) el mejor estimador usa k <= 1;\n"
+        f"  su error mediano es {frontier['0.1']['median_error_at_best']:.3f}-"
+        f"{frontier['1.0']['median_error_at_best']:.3f}, es decir 25-95x eps.\n"
+        "  Las iteraciones de Grover solo ayudan por debajo del ~3 % del ruido actual."
     )
     demo.show(FIGURES / "e4_noise.png")
 
@@ -513,14 +542,14 @@ def step_takeaways(demo: Demo) -> None:
     """Takeaways."""
     console.print(
         Panel(
-            "1. Every estimator reproduces its exact price: pipeline validated (E1).\n"
-            "2. Quantum estimators scale as 1/N, Monte Carlo as 1/√N (E2):\n"
-            "   IQAE needs ~32x fewer queries than MC at eps = 1e-3.\n"
-            "3. IQAE: no extra qubits and ~38x less depth than QPE-based QAE (E3).\n"
-            "4. Quasi-Monte Carlo beats every quantum method here (~170 samples).\n"
-            "5. Realistic noise: nothing reaches eps.  eps needs ~55k two-qubit gates,\n"
-            "   noise allows a few hundred (E4).  The comparator dominates the cost (E5).",
-            title="Takeaways",
+            "1. Cada estimador reproduce su precio exacto: pipeline validado (E1).\n"
+            "2. Los estimadores cuánticos escalan como 1/N, Monte Carlo como 1/√N (E2):\n"
+            "   IQAE necesita ~32x menos consultas que MC con eps = 1e-3.\n"
+            "3. IQAE: sin qubits extra y ~38x menos profundidad que la QAE con QPE (E3).\n"
+            "4. Quasi-Monte Carlo supera aquí a todo método cuántico (~170 muestras).\n"
+            "5. Ruido realista: nada alcanza eps.  eps requiere ~55k compuertas de dos\n"
+            "   qubits; el ruido permite unos cientos (E4).  Domina el comparador (E5).",
+            title="Conclusiones",
             border_style="magenta",
             expand=False,
         )
@@ -528,13 +557,13 @@ def step_takeaways(demo: Demo) -> None:
 
 
 STEPS: Sequence[tuple[str, Callable[[Demo], None]]] = (
-    ("The pricing problem", step_problem),
-    ("The A operator: a quantum circuit for the price", step_circuit),
-    ("Grover amplification", step_grover),
-    ("Live race: IQAE vs Monte Carlo", step_race),
-    ("The full study (E2, E3)", step_study),
-    ("Noise (E4)", step_noise),
-    ("Takeaways", step_takeaways),
+    ("El problema de valoración", step_problem),
+    ("El operador A: un circuito cuántico para el precio", step_circuit),
+    ("Amplificación de Grover", step_grover),
+    ("Carrera en vivo: IQAE frente a Monte Carlo", step_race),
+    ("El estudio completo (E2, E3)", step_study),
+    ("Ruido (E4)", step_noise),
+    ("Conclusiones", step_takeaways),
 )
 
 
@@ -566,7 +595,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     last = min(args.last, len(STEPS))
     selected = [args.only] if args.only else list(range(args.step, last + 1))
     console.print(
-        Rule("[bold]Pricing an option with quantum amplitude estimation[/]  ·  live demo")
+        Rule("[bold]Valoración de opciones con estimación de amplitud cuántica[/]  ·  demo en vivo")
     )
     for position, index in enumerate(selected):
         title, fn = STEPS[index - 1]
@@ -575,10 +604,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             fn(demo)
         except KeyboardInterrupt:
-            console.print("  [yellow]step interrupted[/]")
+            console.print("  [yellow]paso interrumpido[/]")
         if not args.no_pause and position < len(selected) - 1:
             try:
-                console.input("\n[dim]  press Enter for the next step (Ctrl-C to quit) [/]")
+                console.input("\n[dim]  pulsa Enter para el siguiente paso (Ctrl-C para salir) [/]")
             except (KeyboardInterrupt, EOFError):
                 console.print()
                 return 0

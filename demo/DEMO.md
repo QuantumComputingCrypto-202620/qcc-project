@@ -1,76 +1,83 @@
-# Live demo: run sheet
+# Demostración en vivo: guion
 
-`uv run qae-demo` walks through the project in 7 steps. It pauses after each one until you
-press Enter. All noiseless numbers are computed live with this repository's code, which takes
-about 10 s of compute in total on a laptop. The full-study numbers (E2–E4 take ~1.5 h to
-regenerate) are read from the committed `results/summary/` files. Figures go to `demo/out/`
-and open in the system image viewer.
+`uv run qae-demo` recorre el proyecto en 7 pasos y se detiene después de cada uno hasta que
+pulses Enter. Todos los números sin ruido se calculan en vivo con el código de este
+repositorio, unos 10 s de cómputo en total en un portátil. Los números del estudio completo
+(E2–E4 tardan ~1.5 h en regenerarse) se leen de los archivos versionados en
+`results/summary/`. Las figuras se guardan en `demo/out/` y se abren en el visor de imágenes
+del sistema. La demo está en español; las figuras del estudio completo (`results/figures/`,
+pasos 5 y 6) siguen en inglés.
 
-## Before the talk (the day before, then again 10 minutes before)
+## Antes de la charla (el día anterior, y otra vez 10 minutos antes)
 
 ```bash
 cd qcc-project
-git pull && uv sync                       # needs the network only the first time
-uv run qae-demo --no-pause --no-open      # dry run: should finish in ~10-15 s with no errors
-uv run pytest -m "not slow" -q            # optional: 40 passed
+git pull && uv sync                       # solo necesita red la primera vez
+uv run qae-demo --no-pause --no-open      # ensayo: debe terminar en ~10-15 s sin errores
+uv run pytest -m "not slow" -q            # opcional: 40 passed
 ```
 
-- Terminal: font size 18–20 pt, window at least **100 columns** wide (the tables fit 80).
-  Use a light theme if the projector is washed out.
-- Close the image viewer windows from the dry run, so each figure opens fresh during the talk.
-- Turn off notifications. Keep this file open on a second screen or printed.
-- **Offline fallback:** after one `uv sync`, the demo needs no network. If the laptop cannot
-  run it at all, the committed figures in `results/figures/` and the slides cover every step.
+- Terminal: letra de 18–20 pt y ventana de al menos **100 columnas** (las tablas caben en 80).
+  Usa un tema claro si el proyector se ve deslavado.
+- Cierra las ventanas del visor de imágenes del ensayo, para que cada figura se abra de nuevo
+  durante la charla.
+- Desactiva las notificaciones. Ten este archivo abierto en otra pantalla o impreso.
+- **Plan B sin conexión:** tras un `uv sync`, la demo no necesita red. Si el portátil no
+  puede ejecutarla, las figuras en `results/figures/` y las diapositivas cubren cada paso.
 
-## Where the demo sits in the talk
+## Dónde va la demo en la charla
 
-The slide deck has the demo in two parts:
+La presentación tiene la demo en dos partes:
 
-| Slide | Command | Steps |
+| Diapositiva | Comando | Pasos |
 |---|---|---|
-| 9 · “Price it live” | `uv run qae-demo --last 4` | 1–4: problem, A operator, Grover, IQAE vs Monte Carlo (~6 min) |
-| 14 · E4 noise (optional) | `uv run qae-demo --only 6` | 6: the same circuits under IBM noise (~1 min) |
+| 9 · «Valorarla en vivo» | `uv run qae-demo --last 4` | 1–4: problema, operador A, Grover, IQAE frente a Monte Carlo (~6 min) |
+| 14 · E4 ruido (opcional) | `uv run qae-demo --only 6` | 6: los mismos circuitos con el ruido de IBM (~1 min) |
 
-Steps 5 (full study) and 7 (takeaways) repeat what the slides show. They are there so that
-`uv run qae-demo` also works as a standalone walkthrough, e.g. if the projector fails.
+Los pasos 5 (estudio completo) y 7 (conclusiones) repiten lo que muestran las diapositivas.
+Están ahí para que `uv run qae-demo` funcione también como recorrido independiente, por
+ejemplo si falla el proyector.
 
-## Script, step by step (~8 minutes for all 7)
+## Guion paso a paso (~8 minutos para los 7)
 
-| # | Say | Output to point at | Time |
+| # | Qué decir | Qué señalar en la salida | Tiempo |
 |---|---|---|---|
-| — | `uv run qae-demo` | Title rule | — |
-| 1 | "A binary event before expiry: 40 % bad news near 85, 60 % good news near 115. A digital call pays 1 above 100." | Continuous price **0.5636**; grid price 0.5572 at n = 5; the figure shows the two modes and the payoff region in orange. | 1 min |
-| 2 | "The price becomes the probability of measuring 1 on one qubit. A = loader + comparator; one use of A is one *oracle query*." | The circuit (`P(S)` then `i ≥ K`); the statevector probability equals the grid tail to 10 digits; **2,114 two-qubit gates per query** on hardware. | 1 min |
-| 3 | "Grover's operator turns the amplitude into a rotation angle. After k steps the probability is sin²((2k+1)θ). Reading a frequency needs ~1/ε queries, averaging coin flips needs ~1/ε²." | Circuit column = formula column exactly; 100-shot samples scatter around it. The figure shows the oscillation. | 1.5 min |
-| 4 | "One IQAE run, round by round: it picks bigger Grover powers as the interval shrinks." Then: "Now a race: 20 seeds, and Monte Carlo gets exactly the same budget." | Rounds k = 0, 1, 1, 11, 51, 262; final error ~10⁻⁵. In the race table, the **MC / IQAE** column grows as the target error shrinks (≈ 2×, 18×, 250×, 1,100×). That growth is the quadratic speedup. Figure: blue slope −1, orange slope −½. | 2 min |
-| 5 | "That was a live sample. The full study is 49 settings × 50 seeds." | Slopes −1.01 (IQAE) vs −0.52 (MC); **3,659 vs 117,102** queries at ε = 10⁻³; then the caveat: **quasi-MC needs 172**. | 1 min |
-| 6 | "Now the same circuits with IBM's noise model." | At scale 1 the deviation jumps from 0.04 (k = 0) to 0.3–0.5 for k ≥ 1: P(1) collapses to ~0.5. At 3 % of today's noise it survives to k ≈ 4. | 1 min |
-| 7 | "Five takeaways." | Read the panel; switch back to the slides for conclusions and Q&A. | 0.5 min |
+| — | `uv run qae-demo` | Línea de título | — |
+| 1 | «Un evento binario antes del vencimiento: 40 % malas noticias cerca de 85, 60 % buenas noticias cerca de 115. Un call digital paga 1 por encima de 100.» | Precio continuo **0.5636**; precio en la malla 0.5572 con n = 5; la figura muestra los dos modos y la región de pago en naranja. | 1 min |
+| 2 | «El precio se convierte en la probabilidad de medir 1 en un qubit. A = cargador + comparador; un uso de A es una *consulta al oráculo*.» | El circuito (`P(S)` y luego `i ≥ K`); la probabilidad del vector de estado coincide con la cola de la malla en 10 dígitos; **2,114 compuertas de dos qubits por consulta** en hardware. | 1 min |
+| 3 | «El operador de Grover convierte la amplitud en un ángulo de rotación. Tras k pasos la probabilidad es sin²((2k+1)θ). Leer una frecuencia requiere ~1/ε consultas; promediar lanzamientos de moneda, ~1/ε².» | La columna del circuito es exactamente la de la fórmula; las muestras de 100 shots se dispersan alrededor. La figura muestra la oscilación. | 1.5 min |
+| 4 | «Una corrida de IQAE, ronda por ronda: elige potencias de Grover mayores a medida que el intervalo se reduce.» Luego: «Ahora una carrera: 20 semillas, y Monte Carlo recibe exactamente el mismo presupuesto.» | Rondas k = 0, 1, 1, 11, 51, 262; error final ~10⁻⁵. En la tabla de la carrera, la columna **MC / IQAE** crece a medida que baja el error objetivo (≈ 2×, 18×, 250×, 1,100×). Ese crecimiento es la aceleración cuadrática. Figura: azul con pendiente −1, naranja con pendiente −½. | 2 min |
+| 5 | «Eso fue una muestra en vivo. El estudio completo son 49 configuraciones × 50 semillas.» | Pendientes −1.01 (IQAE) frente a −0.52 (MC); **3,659 frente a 117,102** consultas con ε = 10⁻³; luego la salvedad: **quasi-MC necesita 172**. | 1 min |
+| 6 | «Ahora los mismos circuitos con el modelo de ruido de IBM.» | Con escala 1 la desviación salta de 0.04 (k = 0) a 0.3–0.5 para k ≥ 1: P(1) colapsa a ~0.5. Con el 3 % del ruido actual sobrevive hasta k ≈ 4. | 1 min |
+| 7 | «Cinco conclusiones.» | Leer el panel; volver a las diapositivas para las conclusiones y las preguntas. | 0.5 min |
 
-The live numbers in step 4 and the noisy probabilities in step 6 depend on the seed. They are
-reproducible with the default `--seed 2026`, so the numbers above are what you will see.
+Los números en vivo del paso 4 y las probabilidades con ruido del paso 6 dependen de la
+semilla. Son reproducibles con la semilla por defecto `--seed 2026`, así que los números de
+arriba son los que verás.
 
-## If something goes wrong
+## Si algo sale mal
 
-| Problem | Fix |
+| Problema | Solución |
 |---|---|
-| A step errors or hangs | Ctrl-C skips the step; or restart at the next one with `uv run qae-demo --step N` |
-| Need to repeat one step (a question from the audience) | `uv run qae-demo --only 3` |
-| Running late | `uv run qae-demo --step 4 --quick` (race + study + noise + takeaways, ~5 s) |
-| Figures don't open | They are in `demo/out/` and `results/figures/`; open them by hand, or rerun with `--no-open` and use the slides |
-| `uv` not found on the presentation machine | Install it (README Quickstart), then `uv sync`. It needs the network, so do this beforehand |
+| Un paso falla o se cuelga | Ctrl-C salta el paso; o reinicia en el siguiente con `uv run qae-demo --step N` |
+| Hay que repetir un paso (una pregunta del público) | `uv run qae-demo --only 3` |
+| Vas tarde | `uv run qae-demo --step 4 --quick` (carrera + estudio + ruido + conclusiones, ~5 s) |
+| Las figuras no se abren | Están en `demo/out/` y `results/figures/`; ábrelas a mano, o vuelve a ejecutar con `--no-open` y usa las diapositivas |
+| `uv` no está instalado en el equipo de la presentación | Instálalo (README, Quickstart) y luego `uv sync`. Necesita red, así que hazlo antes |
 
-## Likely questions
+## Preguntas probables
 
-- **"So is there a quantum advantage?"** Only in oracle-query count against plain Monte
-  Carlo, and only noiselessly. QMC wins on this 1-D problem, and noise removes it entirely.
-- **"Why a digital payoff?"** It has no payoff-approximation error, so every measured error is
-  estimation error. The European call's rescaling factor c trades approximation error for
-  amplified estimation error (E1).
-- **"Why is the simulation so fast?"** The sampler computes each circuit's exact output
-  distribution once, from cached unitaries (Q^k is a matrix power), and then draws seeded
-  multinomial shots. Tests check it against Aer gate-level simulation to 10⁻¹⁰.
-- **"What would it take on real hardware?"** IQAE at ε = 10⁻³ needs ~55,000 two-qubit gates
-  on a line. At realistic noise only ~344 (k = 1) are usable (E3, E4).
-- **"Is the loader the bottleneck?"** Not here: the comparator is 98 % of A's two-qubit
-  gates at n = 5. The loader still grows as 2ⁿ (E5).
+- **«Entonces, ¿hay ventaja cuántica?»** Solo en número de consultas al oráculo frente a
+  Monte Carlo simple, y solo sin ruido. QMC gana en este problema unidimensional, y el ruido
+  la elimina por completo.
+- **«¿Por qué un pago digital?»** No tiene error de aproximación del pago, así que todo error
+  medido es error de estimación. En el call europeo, el factor de reescalamiento c
+  intercambia error de aproximación por error de estimación amplificado (E1).
+- **«¿Por qué la simulación es tan rápida?»** El sampler calcula una sola vez la distribución
+  de salida exacta de cada circuito, a partir de unitarias en caché (Q^k es una potencia de
+  matriz), y luego toma muestras multinomiales con semilla. Las pruebas lo comparan con la
+  simulación compuerta a compuerta de Aer hasta 10⁻¹⁰.
+- **«¿Qué haría falta en hardware real?»** IQAE con ε = 10⁻³ necesita ~55,000 compuertas de
+  dos qubits en una línea. Con ruido realista solo se pueden usar ~344 (k = 1) (E3, E4).
+- **«¿Es el cargador el cuello de botella?»** Aquí no: el comparador es el 98 % de las
+  compuertas de dos qubits de A con n = 5. Aun así, el cargador crece como 2ⁿ (E5).
