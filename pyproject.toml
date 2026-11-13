@@ -1,5 +1,24 @@
-[tool.uv.workspace]
-members = ["packages/*", "projects/*"]
+[project]
+name = "qae-options"
+version = "0.1.0"
+description = "Option pricing with quantum amplitude estimation: QAE, IQAE and MLAE vs Monte Carlo."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "qiskit",
+    "qiskit-aer",
+    "qiskit-algorithms",
+    # Fake IBM backends (FakeSherbrooke, ...) for noisy_simulator() ship only in this package.
+    "qiskit-ibm-runtime",
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib",
+    "rich",
+]
+
+[project.scripts]
+qae-options = "qae_options.cli:main"
+qae-demo = "qae_options.demo:main"
 
 [dependency-groups]
 dev = [
@@ -8,6 +27,14 @@ dev = [
     "ipykernel>=6",
     "jupyterlab>=4",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# qcc_common: simulator backends, circuit metrics, experiment records, plotting, parallel map.
+packages = ["src/qae_options", "src/qcc_common"]
 
 [tool.ruff]
 line-length = 100
@@ -18,9 +45,9 @@ extend-exclude = ["**/notebooks/**"]
 select = ["E", "F", "I", "UP", "B", "NPY"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["qcc_common", "qae_options", "vqe_lih"]
+known-first-party = ["qcc_common", "qae_options"]
 
 [tool.pytest.ini_options]
-# importlib mode lets every member have tests/test_*.py files with the same names.
+testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
 markers = ["slow: long-running simulation tests (deselect with -m 'not slow')"]

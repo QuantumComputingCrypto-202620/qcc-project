@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  lint:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,21 +14,8 @@ jobs:
         with:
           enable-cache: true
       - run: uv lock --check
-      - run: uv sync --locked --all-packages
+      - run: uv sync --locked
       - run: uv run ruff check
       - run: uv run ruff format --check
-
-  test:
-    name: test (${{ matrix.member }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        member: [packages/qcc-common, projects/qae-options, projects/vqe-lih]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - run: uv sync --locked --all-packages
-      - run: uv run pytest ${{ matrix.member }} -m "not slow"
+      - run: uv run pytest -m "not slow"
+      - run: uv run qae-demo --quick --no-pause --no-open
